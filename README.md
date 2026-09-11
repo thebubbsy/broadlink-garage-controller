@@ -28,6 +28,23 @@ To cater to different home setups, the project provides **two distinct, producti
 
 ---
 
+---
+
+## 📸 Screenshots & UI Tour
+
+<div align="center">
+
+| Mobile Keypad & Weekly Leaderboard | Admin Device Console |
+| :---: | :---: |
+| <img src="docs/screenshots/01-keypad-main.png" width="320" alt="Mobile Keypad Interface" /> | <img src="docs/screenshots/02-admin-device-manager.png" width="320" alt="Admin Device Manager" /> |
+
+### Live Usage Statistics & Peak Hour Analytics
+<img src="docs/screenshots/03-stats-analytics-drawer.png" width="100%" alt="Live Statistics Drawer" />
+
+</div>
+
+---
+
 ## ⚖️ Architecture Comparison
 
 | Feature | Cloud (`cloud-cloudflare-pages/`) | Local (`local-python/`) |
@@ -119,3 +136,5 @@ Choose the path that best suits your setup:
 ## 📄 License
 
 Distributed under the [MIT License](LICENSE).
+
+
