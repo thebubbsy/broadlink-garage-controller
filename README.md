@@ -52,6 +52,7 @@ To cater to different home setups, the project provides **two distinct, producti
 | **PC Powered On 24/7?** | ❌ **No** (Completely serverless) | ✅ Yes (or low-power Android / Pi) |
 | **External Cloud Dependency** | Cloudflare + Alexa / Webhook | ❌ **Zero** (100% local LAN) |
 | **RF Code Learning** | BroadLink app (learn button → scene → Alexa Routine) | Built-in `learn_rf.py` CLI sweep & capture |
+| **Multi-Burst RF Transmit** | Via BroadLink Scene (add the button 3× to the scene) | `RF_BURST_COUNT` in `.env` (default 3, `1` = off) |
 | **4-Factor Device Verification** | ✅ Yes (D1 edge database) | ✅ Yes (SQLite database) |
 | **Admin Whitelist & Nicknames** | ✅ Yes | ✅ Yes |
 | **Weekly Top User Leaderboard** | ✅ Yes (Sunday 11:59 PM reset) | Optional |

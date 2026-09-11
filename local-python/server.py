@@ -7,6 +7,7 @@ import broadlink
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -22,6 +23,11 @@ CORRECT_PIN = os.getenv("GARAGE_PIN", "1234")
 GARAGE_ADMIN_PIN = os.getenv("GARAGE_ADMIN_PIN", "0000")
 BROADLINK_IP = os.getenv("BROADLINK_IP", "")
 BROADLINK_MAC = os.getenv("BROADLINK_MAC", "")
+# RF burst: how many times to transmit the learned code per trigger (1 = single
+# send, 3 = quick triple burst) and the gap between sends. A short repeat is far
+# more reliable than a single packet on most garage receivers. Set in .env.
+RF_BURST_COUNT = max(1, int(os.getenv("RF_BURST_COUNT", "3")))
+RF_BURST_GAP_MS = max(0, int(os.getenv("RF_BURST_GAP_MS", "150")))
 SAVED_RF_CODE_FILE = BASE_DIR / "garage_rf_code.txt"
 
 def get_real_ip(request: Request) -> str:
@@ -92,6 +98,14 @@ def get_broadlink_device():
 
     _cached_device = dev
     return dev
+
+def fire_rf(dev, rf_bytes: bytes) -> int:
+    """Sends the RF code as a burst (RF_BURST_COUNT sends, RF_BURST_GAP_MS apart). Returns sends made."""
+    for i in range(RF_BURST_COUNT):
+        if i:
+            time.sleep(RF_BURST_GAP_MS / 1000.0)
+        dev.send_data(rf_bytes)
+    return RF_BURST_COUNT
 
 # --- Models ---
 class RegisterRequest(BaseModel):
@@ -235,7 +249,7 @@ async def trigger_garage(request: Request, body: TriggerRequest):
                 try:
                     rf_bytes = bytes.fromhex(hex_data)
                     dev = get_broadlink_device()
-                    dev.send_data(rf_bytes)
+                    await run_in_threadpool(fire_rf, dev, rf_bytes)
                     database.record_whitelist_success(body.device_token, ip)
                     return {
                         "status": "success",
@@ -261,7 +275,7 @@ async def trigger_garage(request: Request, body: TriggerRequest):
     try:
         rf_bytes = bytes.fromhex(hex_data)
         dev = get_broadlink_device()
-        dev.send_data(rf_bytes)
+        await run_in_threadpool(fire_rf, dev, rf_bytes)
 
         if body.device_token:
             database.register_or_update_device(

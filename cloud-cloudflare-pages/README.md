@@ -212,7 +212,8 @@ npx wrangler d1 execute garage-db --remote --file=schema_v2.sql
 2. Tap **+ Add** → **Remote control** → choose **RF** (not IR) and a generic type such as *Curtain* / *Light* / *Custom*.
 3. Tap **Learn**, then press and hold your physical garage remote's button until the app confirms the frequency lock, release, and press it again when prompted to capture the code. Name the button (e.g. `Garage`).
 4. Test the new button in the app — your door should move.
-5. Create a **Scene** (BroadLink app → **Scenes** → **+**) containing just that one button, e.g. `Garage Door`. Alexa can run scenes but cannot press individual learned buttons, so this step is required.
+5. Create a **Scene** (BroadLink app → **Scenes** → **+**), e.g. `Garage Door`. Alexa can run scenes but cannot press individual learned buttons, so this step is required.
+   - **Multi-burst (recommended):** the cloud version cannot repeat the RF send itself — the RM4 Pro is driven by the scene, not by this code. To fire the code more than once per trigger, add the same `Garage` button to the scene **multiple times** (e.g. 3×) with no delay between them; the RM4 Pro then transmits it 3× in quick succession, which garage receivers pick up far more reliably than a single packet. This is the equivalent of the local version's `RF_BURST_COUNT=3`. **Do not** try to get a burst by calling the webhook repeatedly — each call is a separate Alexa Routine run seconds apart and would open / stop / close the door.
 6. In the **Amazon Alexa app**: **More → Skills & Games**, enable the **BroadLink** skill and sign in, then **Discover Devices**. The `Garage Door` scene should appear under **Scenes**.
 
 **4b. Bridge Cloudflare → Alexa with a webhook**

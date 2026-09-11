@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -42,8 +43,13 @@ def test_trigger():
 
     dev.auth()
     print(f"Connecting to {dev.model} @ {dev.host[0]}...")
-    print(">> Transmitting garage RF signal...")
-    dev.send_data(rf_bytes)
+    burst = max(1, int(os.getenv("RF_BURST_COUNT", "3")))
+    gap = max(0, int(os.getenv("RF_BURST_GAP_MS", "150"))) / 1000.0
+    print(f">> Transmitting garage RF signal (burst x{burst})...")
+    for i in range(burst):
+        if i:
+            time.sleep(gap)
+        dev.send_data(rf_bytes)
     print("[OK] RF signal sent! Check if your garage door responded.")
 
 if __name__ == "__main__":

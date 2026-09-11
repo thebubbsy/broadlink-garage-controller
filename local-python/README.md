@@ -82,6 +82,7 @@ stateDiagram-v2
 ## ✨ Features
 
 - **Direct LAN Communication**: Millisecond response time with zero external cloud dependencies.
+- **Multi-Burst RF Transmit**: Every trigger sends the learned code 3× in quick succession (150 ms apart) for rock-solid reception. Set `RF_BURST_COUNT` in `.env` to any integer (`1` disables the burst) and `RF_BURST_GAP_MS` for the spacing.
 - **Automated RF Learning**: Interactive script sweeps radio frequencies, locks onto your physical garage remote's signal, and saves the binary packet.
 - **4-Factor Device Verification Gate**:
   1. Cryptographic Device Token
