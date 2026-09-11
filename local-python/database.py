@@ -28,7 +28,10 @@ def init_db():
                 has_opened_with_pin INTEGER DEFAULT 0,
                 is_whitelisted INTEGER DEFAULT 0,
                 open_count INTEGER DEFAULT 0,
-                is_blocked INTEGER DEFAULT 0
+                is_blocked INTEGER DEFAULT 0,
+                one_tap_requested INTEGER DEFAULT 0,
+                one_tap_requested_at TEXT DEFAULT '',
+                is_admin INTEGER DEFAULT 0
             )
         """)
         conn.commit()
@@ -40,6 +43,16 @@ def init_db():
         if "hardware_fingerprint" not in columns:
             cursor.execute("ALTER TABLE devices ADD COLUMN hardware_fingerprint TEXT DEFAULT ''")
             conn.commit()
+
+        # Migration v3: 1-tap access requests + admin classification
+        for col, ddl in (
+            ("one_tap_requested", "INTEGER DEFAULT 0"),
+            ("one_tap_requested_at", "TEXT DEFAULT ''"),
+            ("is_admin", "INTEGER DEFAULT 0"),
+        ):
+            if col not in columns:
+                cursor.execute(f"ALTER TABLE devices ADD COLUMN {col} {ddl}")
+                conn.commit()
 
 def parse_device_traits(user_agent: str) -> Tuple[str, str]:
     """Extract friendly platform and browser names from User-Agent."""
@@ -180,7 +193,10 @@ def register_or_update_device(
                 "hardware_fingerprint": hardware_fingerprint,
                 "is_whitelisted": False,
                 "has_opened_with_pin": False,
-                "is_blocked": False
+                "is_blocked": False,
+                "one_tap_requested": False,
+                "is_admin": False,
+                "pending_requests": 0,
             }
         else:
             # If hardware fingerprint was missing, update it
@@ -191,6 +207,7 @@ def register_or_update_device(
                 WHERE device_token = ?
             """, (now_str, ip_address, user_agent, platform, browser, hw, device_token))
             conn.commit()
+            is_admin = bool(row["is_admin"])
             return {
                 "device_token": row["device_token"],
                 "friendly_name": row["friendly_name"] or f"{platform} ({browser})",
@@ -199,7 +216,11 @@ def register_or_update_device(
                 "hardware_fingerprint": hw,
                 "is_whitelisted": bool(row["is_whitelisted"]),
                 "has_opened_with_pin": bool(row["has_opened_with_pin"]),
-                "is_blocked": bool(row["is_blocked"])
+                "is_blocked": bool(row["is_blocked"]),
+                "one_tap_requested": bool(row["one_tap_requested"]),
+                "is_admin": is_admin,
+                # Only admins get the call-to-action count
+                "pending_requests": count_pending_requests() if is_admin else 0,
             }
 
 def record_pin_success(device_token: str, ip_address: str, hardware_fingerprint: str = ""):
@@ -250,12 +271,20 @@ def get_device(device_token: str) -> Optional[Dict[str, Any]]:
 def list_all_devices() -> List[Dict[str, Any]]:
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM devices ORDER BY is_whitelisted DESC, has_opened_with_pin DESC, last_seen DESC")
+        cursor.execute(
+            "SELECT * FROM devices "
+            "ORDER BY (one_tap_requested = 1 AND is_whitelisted = 0) DESC, "
+            "is_whitelisted DESC, has_opened_with_pin DESC, last_seen DESC"
+        )
         return [dict(row) for row in cursor.fetchall()]
 
 def set_whitelist_status(device_token: str, is_whitelisted: bool):
     with get_connection() as conn:
-        conn.execute("UPDATE devices SET is_whitelisted = ? WHERE device_token = ?", (1 if is_whitelisted else 0, device_token))
+        # Approving or denying either way resolves any outstanding 1-tap request.
+        conn.execute(
+            "UPDATE devices SET is_whitelisted = ?, one_tap_requested = 0 WHERE device_token = ?",
+            (1 if is_whitelisted else 0, device_token),
+        )
         conn.commit()
 
 def set_device_name(device_token: str, friendly_name: str):
@@ -266,6 +295,51 @@ def set_device_name(device_token: str, friendly_name: str):
 def delete_device(device_token: str):
     with get_connection() as conn:
         conn.execute("DELETE FROM devices WHERE device_token = ?", (device_token,))
+        conn.commit()
+
+def count_pending_requests() -> int:
+    """Number of PIN-verified devices currently asking for 1-tap access."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM devices WHERE one_tap_requested = 1 AND is_whitelisted = 0"
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
+def request_one_tap(device_token: str) -> Tuple[str, Optional[str]]:
+    """
+    Records a request for PIN-less 1-tap access.
+    Returns (status, error): status is 'requested' | 'already_requested' |
+    'already_whitelisted' | 'error' (with a message).
+    """
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT is_whitelisted, has_opened_with_pin, is_blocked, one_tap_requested "
+            "FROM devices WHERE device_token = ?",
+            (device_token,),
+        ).fetchone()
+        if row is None:
+            return "error", "Device not found — open the page first to register"
+        if row["is_blocked"]:
+            return "error", "This device is blocked"
+        if row["is_whitelisted"]:
+            return "already_whitelisted", None
+        # Only devices that have proven they know the PIN may ask.
+        if not row["has_opened_with_pin"]:
+            return "error", "Open the door with the PIN first"
+        if row["one_tap_requested"]:
+            return "already_requested", None
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute(
+            "UPDATE devices SET one_tap_requested = 1, one_tap_requested_at = ? WHERE device_token = ?",
+            (now_str, device_token),
+        )
+        conn.commit()
+        return "requested", None
+
+def mark_admin(device_token: str):
+    """Anyone who unlocks the admin panel is an administrator: remember it on their device."""
+    with get_connection() as conn:
+        conn.execute("UPDATE devices SET is_admin = 1 WHERE device_token = ?", (device_token,))
         conn.commit()
 
 init_db()

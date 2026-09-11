@@ -17,11 +17,14 @@ export async function onRequestGet({ request, env }) {
   }
 
   const results = await env.DB.prepare(`
-    SELECT * FROM devices 
-    ORDER BY is_whitelisted DESC, has_opened_with_pin DESC, last_seen DESC
+    SELECT * FROM devices
+    ORDER BY (one_tap_requested = 1 AND is_whitelisted = 0) DESC, is_whitelisted DESC, has_opened_with_pin DESC, last_seen DESC
   `).all();
 
-  return new Response(JSON.stringify({ devices: results.results || [] }), {
+  const devices = results.results || [];
+  const pending = devices.filter(d => d.one_tap_requested && !d.is_whitelisted).length;
+
+  return new Response(JSON.stringify({ devices, pending_requests: pending }), {
     headers: { "Content-Type": "application/json" }
   });
 }

@@ -1,4 +1,4 @@
-import { parseDeviceTraits } from "../_db.js";
+import { parseDeviceTraits, countPendingRequests } from "../_db.js";
 
 export async function onRequestPost({ request, env }) {
   try {
@@ -63,6 +63,7 @@ export async function onRequestPost({ request, env }) {
         WHERE device_token = ?
       `).bind(now, ip, ua, platform, browser, updatedHw, token).run();
 
+      const isAdmin = Boolean(existing.is_admin);
       return new Response(JSON.stringify({
         device_token: existing.device_token,
         friendly_name: existing.friendly_name || `${platform} (${browser})`,
@@ -71,7 +72,11 @@ export async function onRequestPost({ request, env }) {
         hardware_fingerprint: updatedHw,
         is_whitelisted: Boolean(existing.is_whitelisted),
         has_opened_with_pin: Boolean(existing.has_opened_with_pin),
-        is_blocked: Boolean(existing.is_blocked)
+        is_blocked: Boolean(existing.is_blocked),
+        one_tap_requested: Boolean(existing.one_tap_requested),
+        is_admin: isAdmin,
+        // Only admins get the call-to-action count
+        pending_requests: isAdmin ? await countPendingRequests(env) : 0
       }), { headers: { "Content-Type": "application/json" } });
     }
   } catch (err) {

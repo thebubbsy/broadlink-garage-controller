@@ -473,6 +473,90 @@
       background: rgba(100, 116, 139, 0.2);
       color: #94a3b8;
     }
+    .tag.requested {
+      background: rgba(245, 158, 11, 0.22);
+      color: #fbbf24;
+    }
+    .device-row.requested {
+      border-color: rgba(251, 191, 36, 0.45);
+      background: rgba(245, 158, 11, 0.06);
+    }
+    .btn-deny {
+      background: #334155;
+      color: #f87171;
+    }
+
+    /* Request 1-Tap access button (shown after a successful PIN open) */
+    .request-onetap-btn {
+      display: none;
+      width: 100%;
+      margin-top: 14px;
+      height: 52px;
+      border-radius: 16px;
+      border: 1px solid rgba(251, 191, 36, 0.45);
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.24), rgba(251, 191, 36, 0.12));
+      color: #fbbf24;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      animation: onetap-glow 1.8s ease-out infinite;
+      transition: all 0.2s ease;
+    }
+    .request-onetap-btn.show { display: flex; }
+    .request-onetap-btn:active { transform: scale(0.98); }
+    .request-onetap-btn.requested {
+      animation: none;
+      cursor: default;
+      color: #94a3b8;
+      border-color: rgba(148, 163, 184, 0.3);
+      background: rgba(100, 116, 139, 0.15);
+      font-size: 0.85rem;
+    }
+    @keyframes onetap-glow {
+      0%   { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.55); }
+      70%  { box-shadow: 0 0 0 14px rgba(251, 191, 36, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+    }
+
+    /* Admin call-to-action: pending 1-Tap requests */
+    .admin-cta {
+      display: none;
+      width: 100%;
+      margin-bottom: 14px;
+      padding: 12px 16px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.22), rgba(139, 92, 246, 0.18));
+      border: 1px solid rgba(96, 165, 250, 0.45);
+      color: #bfdbfe;
+      font-size: 0.86rem;
+      font-weight: 600;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      cursor: pointer;
+      animation: cta-glow 2s ease-out infinite;
+    }
+    .admin-cta.show { display: flex; }
+    .admin-cta .cta-btn {
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 7px 13px;
+      font-weight: 700;
+      font-size: 0.78rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    @keyframes cta-glow {
+      0%   { box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.5); }
+      70%  { box-shadow: 0 0 0 12px rgba(96, 165, 250, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(96, 165, 250, 0); }
+    }
 
     .device-actions {
       display: flex;
@@ -565,6 +649,12 @@
       </svg>
     </div>
 
+    <!-- Admin call-to-action (Shown to admins when devices have requested 1-Tap access) -->
+    <div class="admin-cta" id="admin-cta" onclick="openAdminModal()">
+      <span>🔔 <span id="admin-cta-text"></span></span>
+      <button class="cta-btn" type="button">Review</button>
+    </div>
+
     <!-- Whitelisted Device Card (Shown only if verified & whitelisted) -->
     <div class="whitelist-verified-card" id="whitelist-card">
       <div class="title" id="whitelist-device-name">✓ Whitelisted Device</div>
@@ -607,6 +697,9 @@
     <button id="open-btn" class="action-btn" disabled onclick="sendTrigger()">
       <span>OPEN / CLOSE</span>
     </button>
+
+    <!-- Request 1-Tap access (Shown once this device has opened the door with the PIN) -->
+    <button class="request-onetap-btn" id="request-onetap-btn" type="button" onclick="requestOneTap()">⚡ Request 1-Tap Access</button>
   </div>
 
   <!-- ADMIN MODAL -->
@@ -659,6 +752,13 @@
     const reverifyReason = document.getElementById("reverify-reason");
     // True while a whitelisted device is being asked to re-enter the PIN after a signature mismatch
     let reverifyPending = false;
+    const requestBtn = document.getElementById("request-onetap-btn");
+    const adminCta = document.getElementById("admin-cta");
+    const adminCtaText = document.getElementById("admin-cta-text");
+    let hasOpenedWithPin = false;
+    let oneTapRequested = false;
+    // True once this device has unlocked the admin panel (persisted server-side)
+    let isAdmin = false;
 
     // Initialize Device Identification
     function getOrCreateDeviceToken() {
@@ -706,6 +806,11 @@
 
         isWhitelisted = data.is_whitelisted;
         reverifyCard.classList.remove("show");
+        hasOpenedWithPin = Boolean(data.has_opened_with_pin);
+        oneTapRequested = Boolean(data.one_tap_requested);
+        isAdmin = Boolean(data.is_admin);
+        renderRequestButton();
+        renderAdminCta(data.pending_requests || 0);
 
         if (isWhitelisted) {
           // Device is whitelisted: Disable PIN pad, show verified card, enable open button immediately!
@@ -833,6 +938,9 @@
               initDevice();
             }, 2500);
           } else if (!isWhitelisted) {
+            // First successful PIN open unlocks the "Request 1-Tap" button
+            hasOpenedWithPin = true;
+            renderRequestButton();
             setTimeout(clearPin, 2500);
           } else {
             setTimeout(() => {
@@ -870,6 +978,66 @@
         if (!isWhitelisted) setTimeout(clearPin, 2000);
         else openBtn.disabled = false;
       }
+    }
+
+    // ── 1-Tap access requests ─────────────────────────────
+    // Shown once the device has proven it knows the PIN; hidden for whitelisted devices.
+    function renderRequestButton() {
+      if (isWhitelisted || !hasOpenedWithPin) {
+        requestBtn.classList.remove("show");
+        return;
+      }
+      requestBtn.classList.add("show");
+      if (oneTapRequested) {
+        requestBtn.classList.add("requested");
+        requestBtn.disabled = true;
+        requestBtn.innerText = "✓ 1-Tap access requested — awaiting admin approval";
+      } else {
+        requestBtn.classList.remove("requested");
+        requestBtn.disabled = false;
+        requestBtn.innerText = "⚡ Request 1-Tap Access (no PIN)";
+      }
+    }
+
+    async function requestOneTap() {
+      if (oneTapRequested || requestBtn.disabled) return;
+      haptic(25);
+      requestBtn.disabled = true;
+      try {
+        const res = await fetch("/api/device/request-onetap", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ device_token: deviceToken })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          oneTapRequested = true;
+          renderRequestButton();
+          statusEl.className = "status-msg success";
+          statusEl.innerText = "Request sent! The admin will review it.";
+          haptic([20, 40, 20]);
+        } else {
+          requestBtn.disabled = false;
+          statusEl.className = "status-msg error";
+          statusEl.innerText = data.error || "Could not send request.";
+        }
+      } catch (e) {
+        requestBtn.disabled = false;
+        statusEl.className = "status-msg error";
+        statusEl.innerText = "Network error — try again.";
+      }
+    }
+
+    // Admins see how many devices are waiting for a 1-Tap decision.
+    function renderAdminCta(pending) {
+      if (!isAdmin || !(pending > 0)) {
+        adminCta.classList.remove("show");
+        return;
+      }
+      adminCtaText.innerText = pending === 1
+        ? "1 person has requested 1-Tap access"
+        : `${pending} people have requested 1-Tap access`;
+      adminCta.classList.add("show");
     }
 
     // Whitelisted device failed the signature gate (e.g. 3 of 4 factors matched):
@@ -928,11 +1096,15 @@
         const res = await fetch("/api/admin/verify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ admin_pin: pin })
+          body: JSON.stringify({ admin_pin: pin, device_token: deviceToken })
         });
         if (res.ok) {
           cachedAdminPin = pin;
           sessionStorage.setItem("admin_pin", pin);
+          // Unlocking the panel classifies this device as an administrator
+          isAdmin = true;
+          const info = await res.json().catch(() => ({}));
+          renderAdminCta(info.pending_requests || 0);
           showDevicesView();
         } else {
           errEl.innerText = "Invalid Admin PIN";
@@ -958,7 +1130,10 @@
         const data = await res.json();
         const devices = data.devices || [];
 
-        document.getElementById("device-count-label").innerText = `${devices.length} Device(s) Total`;
+        const pendingCount = data.pending_requests || 0;
+        document.getElementById("device-count-label").innerText =
+          `${devices.length} Device(s) Total` + (pendingCount ? ` · ⚡ ${pendingCount} pending 1-Tap request${pendingCount === 1 ? "" : "s"}` : "");
+        renderAdminCta(pendingCount);
 
         if (devices.length === 0) {
           container.innerHTML = "<div style='color:var(--muted); text-align:center; padding:20px 0;'>No devices have visited yet.</div>";
@@ -969,10 +1144,13 @@
         devices.forEach(d => {
           const isSelf = (d.device_token === deviceToken);
           const row = document.createElement("div");
-          row.className = `device-row ${d.is_whitelisted ? 'whitelisted' : ''}`;
+          const isRequesting = Boolean(d.one_tap_requested) && !d.is_whitelisted;
+          row.className = `device-row ${d.is_whitelisted ? 'whitelisted' : ''} ${isRequesting ? 'requested' : ''}`;
 
           let statusTag = `<span class="tag pending">No PIN Yet</span>`;
-          if (d.is_whitelisted) {
+          if (isRequesting) {
+            statusTag = `<span class="tag requested">⚡ Requested 1-Tap</span>`;
+          } else if (d.is_whitelisted) {
             statusTag = `<span class="tag whitelisted">★ Whitelisted (No PIN)</span>`;
           } else if (d.has_opened_with_pin) {
             statusTag = `<span class="tag opened">✓ Opened with PIN</span>`;
@@ -996,7 +1174,10 @@
             <div class="device-actions">
               ${d.is_whitelisted 
                 ? `<button class="btn-small btn-revoke" onclick="toggleWhitelist('${d.device_token}', false)">Lock (Require PIN)</button>`
-                : `<button class="btn-small btn-whitelist" onclick="toggleWhitelist('${d.device_token}', true)">★ Allow Without PIN</button>`
+                : isRequesting
+                  ? `<button class="btn-small btn-whitelist" onclick="toggleWhitelist('${d.device_token}', true)">★ Approve 1-Tap</button>
+                     <button class="btn-small btn-deny" onclick="toggleWhitelist('${d.device_token}', false)">Deny</button>`
+                  : `<button class="btn-small btn-whitelist" onclick="toggleWhitelist('${d.device_token}', true)">★ Allow Without PIN</button>`
               }
               <button class="btn-small btn-rename" onclick="renameDevice('${d.device_token}', '${escapeHtml(d.friendly_name || '')}')">Rename</button>
               <button class="btn-small btn-delete" onclick="deleteDevice('${d.device_token}')" title="Delete">🗑️</button>

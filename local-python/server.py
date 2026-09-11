@@ -105,6 +105,10 @@ class TriggerRequest(BaseModel):
 
 class AdminAuthRequest(BaseModel):
     admin_pin: str
+    device_token: Optional[str] = None
+
+class OneTapRequest(BaseModel):
+    device_token: str
 
 class AdminWhitelistRequest(BaseModel):
     admin_pin: str
@@ -168,6 +172,15 @@ async def register_device(request: Request, body: RegisterRequest):
         body.device_token, ua, ip, body.hardware_fingerprint or ""
     )
     return device_info
+
+# --- 1-Tap Access Request ---
+@app.post("/api/device/request-onetap")
+async def request_one_tap(body: OneTapRequest):
+    status, error = database.request_one_tap(body.device_token)
+    if status == "error":
+        code = 404 if "not found" in (error or "") else 403
+        return JSONResponse(status_code=code, content={"error": error})
+    return {"status": status}
 
 # --- Garage Trigger (PIN or Strict 4-Factor Whitelist) ---
 @app.post("/api/trigger")
@@ -274,12 +287,18 @@ def verify_admin(pin: str):
 @app.post("/api/admin/verify")
 async def admin_verify(body: AdminAuthRequest):
     verify_admin(body.admin_pin)
-    return {"status": "authenticated"}
+    # Anyone who unlocks the admin panel is an administrator: remember it on
+    # their device so the home page can show them pending 1-tap requests.
+    if body.device_token:
+        database.mark_admin(body.device_token)
+    return {"status": "authenticated", "pending_requests": database.count_pending_requests()}
 
 @app.get("/api/admin/devices")
 async def admin_get_devices(admin_pin: str):
     verify_admin(admin_pin)
-    return {"devices": database.list_all_devices()}
+    devices = database.list_all_devices()
+    pending = sum(1 for d in devices if d.get("one_tap_requested") and not d.get("is_whitelisted"))
+    return {"devices": devices, "pending_requests": pending}
 
 @app.post("/api/admin/whitelist")
 async def admin_set_whitelist(body: AdminWhitelistRequest):

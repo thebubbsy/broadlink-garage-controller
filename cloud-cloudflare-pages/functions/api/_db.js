@@ -69,3 +69,12 @@ export function verifyDeviceSignature(storedDevice, currentUa, currentHwFingerpr
 
   return { valid: false, reason, matched, total: checks.length, failed: failed.map(c => c.factor), checks };
 }
+
+// Number of PIN-verified devices currently asking for 1-tap access.
+export async function countPendingRequests(env) {
+  if (!env.DB) return 0;
+  const row = await env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM devices WHERE one_tap_requested = 1 AND is_whitelisted = 0"
+  ).first();
+  return row ? (row.n || 0) : 0;
+}

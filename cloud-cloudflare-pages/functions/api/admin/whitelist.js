@@ -18,7 +18,8 @@ export async function onRequestPost({ request, env }) {
     return new Response(JSON.stringify({ error: "Database not configured" }), { status: 500 });
   }
 
-  await env.DB.prepare("UPDATE devices SET is_whitelisted = ? WHERE device_token = ?")
+  // Approving or denying either way resolves any outstanding 1-tap request.
+  await env.DB.prepare("UPDATE devices SET is_whitelisted = ?, one_tap_requested = 0 WHERE device_token = ?")
     .bind(body.whitelisted ? 1 : 0, body.device_token)
     .run();
 
