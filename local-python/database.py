@@ -1,4 +1,5 @@
 import sqlite3
+import secrets
 import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple
@@ -31,7 +32,8 @@ def init_db():
                 is_blocked INTEGER DEFAULT 0,
                 one_tap_requested INTEGER DEFAULT 0,
                 one_tap_requested_at TEXT DEFAULT '',
-                is_admin INTEGER DEFAULT 0
+                is_admin INTEGER DEFAULT 0,
+                siri_key TEXT DEFAULT ''
             )
         """)
         conn.commit()
@@ -49,6 +51,8 @@ def init_db():
             ("one_tap_requested", "INTEGER DEFAULT 0"),
             ("one_tap_requested_at", "TEXT DEFAULT ''"),
             ("is_admin", "INTEGER DEFAULT 0"),
+            # v4: per-device Siri / Shortcuts key (whitelisted devices only)
+            ("siri_key", "TEXT DEFAULT ''"),
         ):
             if col not in columns:
                 cursor.execute(f"ALTER TABLE devices ADD COLUMN {col} {ddl}")
@@ -197,6 +201,7 @@ def register_or_update_device(
                 "one_tap_requested": False,
                 "is_admin": False,
                 "pending_requests": 0,
+                "siri_enabled": False,
             }
         else:
             # If hardware fingerprint was missing, update it
@@ -221,6 +226,7 @@ def register_or_update_device(
                 "is_admin": is_admin,
                 # Only admins get the call-to-action count
                 "pending_requests": count_pending_requests() if is_admin else 0,
+                "siri_enabled": bool(row["siri_key"]),
             }
 
 def record_pin_success(device_token: str, ip_address: str, hardware_fingerprint: str = ""):
@@ -281,10 +287,17 @@ def list_all_devices() -> List[Dict[str, Any]]:
 def set_whitelist_status(device_token: str, is_whitelisted: bool):
     with get_connection() as conn:
         # Approving or denying either way resolves any outstanding 1-tap request.
-        conn.execute(
-            "UPDATE devices SET is_whitelisted = ?, one_tap_requested = 0 WHERE device_token = ?",
-            (1 if is_whitelisted else 0, device_token),
-        )
+        if is_whitelisted:
+            conn.execute(
+                "UPDATE devices SET is_whitelisted = 1, one_tap_requested = 0 WHERE device_token = ?",
+                (device_token,),
+            )
+        else:
+            # Revoking 1-tap also revokes any Siri / Shortcuts key issued to the device.
+            conn.execute(
+                "UPDATE devices SET is_whitelisted = 0, one_tap_requested = 0, siri_key = '' WHERE device_token = ?",
+                (device_token,),
+            )
         conn.commit()
 
 def set_device_name(device_token: str, friendly_name: str):
@@ -348,5 +361,43 @@ def mark_admin(device_token: str):
     with get_connection() as conn:
         conn.execute("UPDATE devices SET is_admin = 1 WHERE device_token = ?", (device_token,))
         conn.commit()
+
+# ── Siri / Shortcuts key ─────────────────────────────────────────────────
+def manage_siri_key(device_token: str, action: str = "ensure") -> Tuple[str, Optional[str], Optional[str]]:
+    """
+    action: 'ensure' (return existing or create), 'regenerate', 'disable'.
+    Returns (status, key, error). Only whitelisted devices may hold a key.
+    """
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT is_whitelisted, is_blocked, siri_key FROM devices WHERE device_token = ?",
+            (device_token,),
+        ).fetchone()
+        if row is None:
+            return "error", None, "Device not found — open the page first to register"
+        if row["is_blocked"]:
+            return "error", None, "This device is blocked"
+        if action == "disable":
+            conn.execute("UPDATE devices SET siri_key = '' WHERE device_token = ?", (device_token,))
+            conn.commit()
+            return "disabled", None, None
+        if not row["is_whitelisted"]:
+            return "error", None, ("Siri access is only available for devices with 1-Tap access. "
+                                   "Ask the admin to approve this device first.")
+        key = row["siri_key"] or ""
+        if not key or action == "regenerate":
+            key = secrets.token_hex(32)  # 256-bit, URL safe
+            conn.execute("UPDATE devices SET siri_key = ? WHERE device_token = ?", (key, device_token))
+            conn.commit()
+        return "ok", key, None
+
+def get_device_by_siri_key(key: str) -> Optional[Dict[str, Any]]:
+    if not key:
+        return None
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM devices WHERE siri_key = ? AND siri_key != ''", (key,)
+        ).fetchone()
+        return dict(row) if row else None
 
 init_db()

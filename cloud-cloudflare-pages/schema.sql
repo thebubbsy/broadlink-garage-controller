@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS devices (
     is_blocked INTEGER DEFAULT 0,
     one_tap_requested INTEGER DEFAULT 0,
     one_tap_requested_at TEXT DEFAULT '',
-    is_admin INTEGER DEFAULT 0
+    is_admin INTEGER DEFAULT 0,
+    siri_key TEXT DEFAULT ''                 -- bearer key for the Siri / Shortcuts trigger (whitelisted devices only)
 );
 
 -- Event log (see schema_v2.sql for the migration on existing databases)
@@ -24,7 +25,7 @@ CREATE TABLE IF NOT EXISTS events (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     device_token TEXT NOT NULL DEFAULT '',
     friendly_name TEXT NOT NULL DEFAULT '',
-    auth_method  TEXT NOT NULL DEFAULT 'pin',
+    auth_method  TEXT NOT NULL DEFAULT 'pin',   -- 'pin' | 'whitelisted_4factor' | 'siri'
     ip_address   TEXT NOT NULL DEFAULT '',
     triggered_at TEXT NOT NULL
 );

@@ -78,3 +78,48 @@ export async function countPendingRequests(env) {
   ).first();
   return row ? (row.n || 0) : 0;
 }
+
+// ── Shared trigger plumbing (used by /api/trigger and /api/siri/trigger) ──
+// Every door activation, whatever authenticated it, must go through logEvent so
+// stats, peak hours and the weekly leaderboard count it.
+
+export function nowUtc() {
+  return new Date().toISOString().replace("T", " ").substring(0, 19);
+}
+
+export async function logEvent(env, deviceToken, friendlyName, authMethod, ip, now) {
+  if (!env.DB) return;
+  try {
+    await env.DB.prepare(
+      "INSERT INTO events (device_token, friendly_name, auth_method, ip_address, triggered_at) VALUES (?, ?, ?, ?, ?)"
+    ).bind(deviceToken, friendlyName, authMethod, ip, now).run();
+  } catch (err) {
+    console.error("[trigger] logEvent failed:", err);
+  }
+}
+
+export async function dispatchTriggerWebhook(env) {
+  const webhookUrl = env.GARAGE_WEBHOOK_URL;
+  if (!webhookUrl) return;
+  try {
+    const res = await fetch(webhookUrl, {
+      method: "GET",
+      headers: { "User-Agent": "SmartGarageController/1.0" }
+    });
+    console.log("[webhook] status " + res.status);
+  } catch (err) {
+    console.error("[webhook] failed: " + err);
+  }
+}
+
+// 256-bit random key, hex encoded (64 chars). Safe to put in a URL.
+export function generateSiriKey() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
+}
+
+export function siriTriggerUrl(request, key) {
+  const origin = new URL(request.url).origin;
+  return `${origin}/api/siri/trigger?key=${key}`;
+}

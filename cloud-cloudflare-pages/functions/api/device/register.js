@@ -76,7 +76,10 @@ export async function onRequestPost({ request, env }) {
         one_tap_requested: Boolean(existing.one_tap_requested),
         is_admin: isAdmin,
         // Only admins get the call-to-action count
-        pending_requests: isAdmin ? await countPendingRequests(env) : 0
+        pending_requests: isAdmin ? await countPendingRequests(env) : 0,
+        siri_enabled: Boolean(existing.siri_key),
+        // Optional iCloud-shared Shortcut link (set SIRI_SHORTCUT_URL in Pages env vars)
+        siri_shortcut_url: env.SIRI_SHORTCUT_URL || ""
       }), { headers: { "Content-Type": "application/json" } });
     }
   } catch (err) {

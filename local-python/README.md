@@ -82,6 +82,7 @@ stateDiagram-v2
 ## ✨ Features
 
 - **Direct LAN Communication**: Millisecond response time with zero external cloud dependencies.
+- **"Hey Siri" Shortcut**: Whitelisted devices get a private Siri link and a 2-action Apple Shortcut recipe — see the Hey Siri section below.
 - **Multi-Burst RF Transmit**: Every trigger sends the learned code 3× in quick succession (150 ms apart) for rock-solid reception. Set `RF_BURST_COUNT` in `.env` to any integer (`1` disables the burst) and `RF_BURST_GAP_MS` for the spacing.
 - **Automated RF Learning**: Interactive script sweeps radio frequencies, locks onto your physical garage remote's signal, and saves the binary packet.
 - **4-Factor Device Verification Gate**:
@@ -91,6 +92,29 @@ stateDiagram-v2
   4. Hardware Display Geometry Fingerprint
 - **Admin Management Panel**: Whitelist devices, assign friendly names, view access logs, and delete stale devices.
 - **Ultra Low Power Consumption**: Can run 24/7 on an unused spare Android phone drawing under 2 Watts.
+
+---
+
+## 🎙 "Hey Siri, open garage door" (Apple Shortcuts)
+
+Whitelisted (1-Tap) devices can enable Siri from the app: tap **🎙 Set up "Hey Siri"** on the verified card. The app issues a private per-device link (`/api/siri/trigger?key=…`, 256-bit key) and shows a 5-step recipe for a 2-action Apple Shortcut (**Get Contents of URL** → **Show Result**). Name it *Open garage door* and Siri runs it from the lock screen, CarPlay or Apple Watch.
+
+- Every Siri open goes through the same path as a tap in the app: counted on the device, logged as an event (`auth_method: siri`), included in stats, peak hours and the weekly leaderboard, and fires the same door trigger.
+- The link only works while the device has 1-Tap access. Revoking 1-Tap in the admin panel (or the user tapping **Disable Siri**) kills it immediately; **Regenerate link** rotates it.
+- Android users can use the same link with the free *HTTP Shortcuts* app / a Google Assistant routine.
+
+### Optional: one-tap "Get Shortcut" button
+
+Build the Shortcut once on an iPhone, share it via iCloud, and the app shows a **Get Shortcut** button so users only have to paste their link:
+
+1. Shortcuts → **+** → name it **Open garage door**.
+2. Add a **Text** action containing the placeholder `PASTE-LINK-HERE`.
+3. Add **Get Contents of URL** and set its URL to the *Text* variable.
+4. Add **Show Result** with the *Contents of URL* variable.
+5. Tap **ⓘ → Share → Copy iCloud Link**. Use Shortcuts' **Import Questions** so the Text field is asked for on import ("Paste your private Siri link from the garage app").
+6. Set the environment variable `SIRI_SHORTCUT_URL` to that iCloud link in `.env`. The Siri modal now shows **Get Shortcut** above the manual steps.
+
+> Security note: the Siri link is a plain bearer secret — it deliberately skips the browser-signature checks because Shortcuts isn't a browser. It's only issued to already-whitelisted devices and is revocable, so it's no weaker than the device token, but treat it like a key: don't share it, and don't open it in a browser (it triggers the door).
 
 ---
 

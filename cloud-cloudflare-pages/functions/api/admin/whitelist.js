@@ -19,9 +19,14 @@ export async function onRequestPost({ request, env }) {
   }
 
   // Approving or denying either way resolves any outstanding 1-tap request.
-  await env.DB.prepare("UPDATE devices SET is_whitelisted = ?, one_tap_requested = 0 WHERE device_token = ?")
-    .bind(body.whitelisted ? 1 : 0, body.device_token)
-    .run();
+  if (body.whitelisted) {
+    await env.DB.prepare("UPDATE devices SET is_whitelisted = 1, one_tap_requested = 0 WHERE device_token = ?")
+      .bind(body.device_token).run();
+  } else {
+    // Revoking 1-tap also revokes any Siri / Shortcuts key issued to the device.
+    await env.DB.prepare("UPDATE devices SET is_whitelisted = 0, one_tap_requested = 0, siri_key = '' WHERE device_token = ?")
+      .bind(body.device_token).run();
+  }
 
   return new Response(JSON.stringify({ status: "success", whitelisted: body.whitelisted }), {
     headers: { "Content-Type": "application/json" }

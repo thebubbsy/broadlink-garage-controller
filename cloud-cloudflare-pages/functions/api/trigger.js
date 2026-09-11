@@ -1,4 +1,4 @@
-import { verifyDeviceSignature, parseDeviceTraits } from "./_db.js";
+import { verifyDeviceSignature, parseDeviceTraits, logEvent, dispatchTriggerWebhook } from "./_db.js";
 
 export async function onRequestPost({ request, env }) {
   const ip = request.headers.get("cf-connecting-ip") || "unknown";
@@ -95,29 +95,4 @@ export async function onRequestPost({ request, env }) {
     status: "success", auth: "pin",
     message: "Door triggered successfully with valid PIN."
   }), { headers: { "Content-Type": "application/json" } });
-}
-
-async function logEvent(env, deviceToken, friendlyName, authMethod, ip, now) {
-  if (!env.DB) return;
-  try {
-    await env.DB.prepare(
-      "INSERT INTO events (device_token, friendly_name, auth_method, ip_address, triggered_at) VALUES (?, ?, ?, ?, ?)"
-    ).bind(deviceToken, friendlyName, authMethod, ip, now).run();
-  } catch (err) {
-    console.error("[trigger] logEvent failed:", err);
-  }
-}
-
-async function dispatchTriggerWebhook(env) {
-  const webhookUrl = env.GARAGE_WEBHOOK_URL;
-  if (!webhookUrl) return;
-  try {
-    const res = await fetch(webhookUrl, {
-      method: "GET",
-      headers: { "User-Agent": "SmartGarageController/1.0" }
-    });
-    console.log("[webhook] status " + res.status);
-  } catch (err) {
-    console.error("[webhook] failed: " + err);
-  }
 }

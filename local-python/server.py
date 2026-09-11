@@ -21,6 +21,8 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent
 CORRECT_PIN = os.getenv("GARAGE_PIN", "1234")
 GARAGE_ADMIN_PIN = os.getenv("GARAGE_ADMIN_PIN", "0000")
+# Optional: iCloud-shared Apple Shortcut link shown in the "Hey Siri" setup modal
+SIRI_SHORTCUT_URL = os.getenv("SIRI_SHORTCUT_URL", "")
 BROADLINK_IP = os.getenv("BROADLINK_IP", "")
 BROADLINK_MAC = os.getenv("BROADLINK_MAC", "")
 # RF burst: how many times to transmit the learned code per trigger (1 = single
@@ -125,6 +127,10 @@ class OneTapRequest(BaseModel):
     device_token: str
     nickname: str = ""
 
+class SiriKeyRequest(BaseModel):
+    device_token: str
+    action: str = "ensure"   # ensure | regenerate | disable
+
 class AdminWhitelistRequest(BaseModel):
     admin_pin: str
     device_token: str
@@ -186,6 +192,7 @@ async def register_device(request: Request, body: RegisterRequest):
     device_info = database.register_or_update_device(
         body.device_token, ua, ip, body.hardware_fingerprint or ""
     )
+    device_info["siri_shortcut_url"] = SIRI_SHORTCUT_URL
     return device_info
 
 # --- 1-Tap Access Request ---
@@ -294,6 +301,84 @@ async def trigger_garage(request: Request, body: TriggerRequest):
         _cached_device = None
         raise HTTPException(status_code=500, detail=f"Broadlink dispatch failed: {str(e)}")
 
+# --- Siri / Apple Shortcuts integration ---
+def _load_rf_code() -> bytes:
+    if not SAVED_RF_CODE_FILE.exists():
+        raise HTTPException(status_code=500, detail="Garage RF code has not been learned yet. Run python learn_rf.py.")
+    hex_data = SAVED_RF_CODE_FILE.read_text(encoding="utf-8").strip()
+    if not hex_data:
+        raise HTTPException(status_code=500, detail="RF code file is empty.")
+    return bytes.fromhex(hex_data)
+
+@app.post("/api/device/siri-key")
+async def siri_key(request: Request, body: SiriKeyRequest):
+    """Issues / regenerates / disables the per-device key used by the "Hey Siri" Shortcut."""
+    action = body.action if body.action in ("ensure", "regenerate", "disable") else "ensure"
+    status, key, error = database.manage_siri_key(body.device_token, action)
+    if status == "error":
+        code = 404 if "not found" in (error or "") else 403
+        return JSONResponse(status_code=code, content={"error": error})
+    if status == "disabled":
+        return {"status": "disabled", "siri_enabled": False}
+    base = str(request.base_url).rstrip("/")
+    return {
+        "status": "ok",
+        "siri_enabled": True,
+        "siri_key": key,
+        "trigger_url": f"{base}/api/siri/trigger?key={key}",
+        "siri_shortcut_url": SIRI_SHORTCUT_URL,
+    }
+
+@app.api_route("/api/siri/trigger", methods=["GET", "POST"])
+@limiter.limit("10/minute")
+async def siri_trigger(request: Request):
+    """
+    Fires the garage door for the Apple Shortcuts / "Hey Siri" integration.
+    Authenticates with the device's Siri key instead of the browser signature, but
+    is otherwise identical to /api/trigger: the device must be whitelisted and not
+    blocked, the open is counted on the device, and the same RF burst fires.
+    Responds with plain text by default so a 2-action Shortcut
+    ("Get Contents of URL" -> "Show Result") makes Siri speak the outcome.
+    """
+    wants_json = request.query_params.get("format") == "json"
+
+    def reply(code: int, message: str, **extra):
+        headers = {"Cache-Control": "no-store"}
+        if wants_json:
+            return JSONResponse(status_code=code, headers=headers,
+                                content={"status": "success" if code < 400 else "error", "message": message, **extra})
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(message, status_code=code, headers=headers)
+
+    key = request.query_params.get("key", "")
+    if not key and request.method == "POST":
+        try:
+            key = (await request.json()).get("key", "")
+        except Exception:
+            key = ""
+    if not key or len(key) < 32:
+        return reply(403, "Siri access denied: missing key.")
+
+    device = database.get_device_by_siri_key(key)
+    if not device:
+        return reply(403, "Siri access denied: this key is no longer valid. Open the garage app to set up Siri again.")
+    if device["is_blocked"]:
+        return reply(403, "Siri access denied: this device is blocked.")
+    if not device["is_whitelisted"]:
+        return reply(403, "Siri access denied: 1-Tap access has been revoked for this device.")
+
+    rf_bytes = _load_rf_code()
+    try:
+        dev = get_broadlink_device()
+        await run_in_threadpool(fire_rf, dev, rf_bytes)
+    except Exception as e:
+        global _cached_device
+        _cached_device = None
+        return reply(500, f"Garage server error: {e}")
+
+    database.record_whitelist_success(device["device_token"], get_real_ip(request))
+    return reply(200, "Garage door triggered.", auth="siri", device=device.get("friendly_name", ""))
+
 # --- Admin Endpoints ---
 def verify_admin(pin: str):
     if pin != GARAGE_ADMIN_PIN:
@@ -312,7 +397,11 @@ async def admin_verify(body: AdminAuthRequest):
 @app.get("/api/admin/devices")
 async def admin_get_devices(admin_pin: str):
     verify_admin(admin_pin)
-    devices = database.list_all_devices()
+    # Expose whether a Siri key exists, never the key itself.
+    devices = []
+    for d in database.list_all_devices():
+        d["siri_enabled"] = bool(d.pop("siri_key", ""))
+        devices.append(d)
     pending = sum(1 for d in devices if d.get("one_tap_requested") and not d.get("is_whitelisted"))
     return {"devices": devices, "pending_requests": pending}
 

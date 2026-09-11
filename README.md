@@ -55,6 +55,7 @@ To cater to different home setups, the project provides **two distinct, producti
 | **Multi-Burst RF Transmit** | Via BroadLink Scene (add the button 3× to the scene) | `RF_BURST_COUNT` in `.env` (default 3, `1` = off) |
 | **4-Factor Device Verification** | ✅ Yes (D1 edge database) | ✅ Yes (SQLite database) |
 | **Admin Whitelist & Nicknames** | ✅ Yes | ✅ Yes |
+| **"Hey Siri" Shortcut** | ✅ Yes (per-device Siri link) | ✅ Yes (per-device Siri link) |
 | **Weekly Top User Leaderboard** | ✅ Yes (Sunday 11:59 PM reset) | Optional |
 | **Mobile PWA Support** | ✅ Yes | ✅ Yes |
 | **Cost** | $0.00 / month (Cloudflare Free Tier) | $0.00 (Self-hosted) |
@@ -140,6 +141,7 @@ If an unapproved device attempts access, or if any of the 4 conditions mismatch,
 - **Master Admin Drawer**: Whitelist trusted neighbors, assign custom nicknames (e.g., "Dad", "Sarah\'s Phone"), or revoke access in real time.
 - **Weekly Leaderboard**: Displays the top user of the week with access counts, resetting automatically every Sunday at 11:59 PM.
 - **Usage Statistics**: Visualizes peak trigger times throughout the day and all-time access counts.
+- **"Hey Siri, open garage door"**: Whitelisted devices can enable a private Siri link and a 2-action Apple Shortcut — works from the lock screen, CarPlay and Apple Watch. Siri opens are logged and counted like any other; revoking 1-Tap revokes the link.
 - **RF Remote Learning** — how the garage remote's signal is captured differs by architecture:
   - **Local (`local-python/`)**: Built-in CLI tool (`learn_rf.py`) sweeps carrier frequencies, locks onto your physical remote's RF code packet and saves it to `garage_rf_code.txt`. The server then transmits it directly over the LAN. *Local version only.*
   - **Cloud (`cloud-cloudflare-pages/`)**: No CLI learning. You learn the remote button inside the **BroadLink mobile app**, add that button to a **BroadLink Scene**, link BroadLink to **Alexa**, and create an Alexa Routine that runs the scene when the webhook fires. See the cloud README, Step 4.

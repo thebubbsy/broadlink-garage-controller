@@ -198,7 +198,11 @@ npx wrangler d1 execute garage-db --remote --file=schema.sql
 
 # Apply events and stats schema
 npx wrangler d1 execute garage-db --remote --file=schema_v2.sql
+npx wrangler d1 execute garage-db --remote --file=schema_v3.sql
+npx wrangler d1 execute garage-db --remote --file=schema_v4.sql
 ```
+
+> Fresh install? `schema.sql` already contains everything — the numbered files are additive migrations for databases created earlier.
 
 ---
 
@@ -233,6 +237,29 @@ To reach Alexa from a Cloudflare Pages function without running local servers, u
 
 ---
 
+## 🎙 "Hey Siri, open garage door" (Apple Shortcuts)
+
+Whitelisted (1-Tap) devices can enable Siri from the app: tap **🎙 Set up "Hey Siri"** on the verified card. The app issues a private per-device link (`/api/siri/trigger?key=…`, 256-bit key) and shows a 5-step recipe for a 2-action Apple Shortcut (**Get Contents of URL** → **Show Result**). Name it *Open garage door* and Siri runs it from the lock screen, CarPlay or Apple Watch.
+
+- Every Siri open goes through the same path as a tap in the app: counted on the device, logged as an event (`auth_method: siri`), included in stats, peak hours and the weekly leaderboard, and fires the same door trigger.
+- The link only works while the device has 1-Tap access. Revoking 1-Tap in the admin panel (or the user tapping **Disable Siri**) kills it immediately; **Regenerate link** rotates it.
+- Android users can use the same link with the free *HTTP Shortcuts* app / a Google Assistant routine.
+
+### Optional: one-tap "Get Shortcut" button
+
+Build the Shortcut once on an iPhone, share it via iCloud, and the app shows a **Get Shortcut** button so users only have to paste their link:
+
+1. Shortcuts → **+** → name it **Open garage door**.
+2. Add a **Text** action containing the placeholder `PASTE-LINK-HERE`.
+3. Add **Get Contents of URL** and set its URL to the *Text* variable.
+4. Add **Show Result** with the *Contents of URL* variable.
+5. Tap **ⓘ → Share → Copy iCloud Link**. Use Shortcuts' **Import Questions** so the Text field is asked for on import ("Paste your private Siri link from the garage app").
+6. Set the environment variable `SIRI_SHORTCUT_URL` to that iCloud link (Cloudflare dashboard → Pages → your project → Settings → Environment variables, or `[vars]` in `wrangler.toml`). The Siri modal now shows **Get Shortcut** above the manual steps.
+
+> Security note: the Siri link is a plain bearer secret — it deliberately skips the browser-signature checks because Shortcuts isn't a browser. It's only issued to already-whitelisted devices and is revocable, so it's no weaker than the device token, but treat it like a key: don't share it, and don't open it in a browser (it triggers the door).
+
+---
+
 ### Step 5: Configure Environment Variables
 
 Edit `wrangler.toml`:
@@ -242,6 +269,7 @@ Edit `wrangler.toml`:
 GARAGE_PIN = "1234"        # Fallback 4-digit PIN for unwhitelisted devices
 GARAGE_ADMIN_PIN = "0000"  # Master Admin PIN to open Admin console
 GARAGE_WEBHOOK_URL = "https://www.virtualsmarthome.xyz/url_routine_trigger/activate.php?trigger=YOUR_ID&token=YOUR_TOKEN"
+SIRI_SHORTCUT_URL = ""     # Optional: iCloud link to your shared "Open garage door" Shortcut (see Hey Siri section)
 ```
 
 ---

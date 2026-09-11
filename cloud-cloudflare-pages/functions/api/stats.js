@@ -13,7 +13,8 @@ export async function onRequestGet({ env }) {
           MAX(triggered_at)                   AS last_trigger,
           COUNT(DISTINCT device_token)        AS unique_devices,
           SUM(CASE WHEN auth_method = 'pin' THEN 1 ELSE 0 END)                    AS pin_count,
-          SUM(CASE WHEN auth_method = 'whitelisted_4factor' THEN 1 ELSE 0 END)    AS whitelist_count
+          SUM(CASE WHEN auth_method = 'whitelisted_4factor' THEN 1 ELSE 0 END)    AS whitelist_count,
+          SUM(CASE WHEN auth_method = 'siri' THEN 1 ELSE 0 END)                   AS siri_count
         FROM events
       `).first(),
 
@@ -72,6 +73,7 @@ export async function onRequestGet({ env }) {
       unique_devices:   totals ? totals.unique_devices   : 0,
       pin_count:        totals ? totals.pin_count         : 0,
       whitelist_count:  totals ? totals.whitelist_count   : 0,
+      siri_count:       totals ? totals.siri_count        : 0,
       first_ever:       totals ? totals.first_ever        : null,
       last_trigger:     totals ? totals.last_trigger      : null,
       peak_hour:        peakHour,

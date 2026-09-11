@@ -21,7 +21,11 @@ export async function onRequestGet({ request, env }) {
     ORDER BY (one_tap_requested = 1 AND is_whitelisted = 0) DESC, is_whitelisted DESC, has_opened_with_pin DESC, last_seen DESC
   `).all();
 
-  const devices = results.results || [];
+  // Expose whether a Siri key exists, never the key itself.
+  const devices = (results.results || []).map(d => {
+    const { siri_key, ...rest } = d;
+    return { ...rest, siri_enabled: Boolean(siri_key) };
+  });
   const pending = devices.filter(d => d.one_tap_requested && !d.is_whitelisted).length;
 
   return new Response(JSON.stringify({ devices, pending_requests: pending }), {

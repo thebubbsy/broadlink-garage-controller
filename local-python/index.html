@@ -485,6 +485,61 @@
       background: #334155;
       color: #f87171;
     }
+    .tag.siri {
+      background: rgba(168, 85, 247, 0.22);
+      color: #c4b5fd;
+    }
+
+    /* "Hey Siri" setup */
+    .siri-btn {
+      margin-top: 4px;
+      background: rgba(168, 85, 247, 0.16);
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      color: #d8b4fe;
+      border-radius: 12px;
+      padding: 7px 14px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .siri-btn:active { transform: scale(0.96); }
+    .siri-btn.enabled { background: rgba(168, 85, 247, 0.28); }
+    .siri-card { max-width: 400px; max-height: 90vh; overflow-y: auto; text-align: left; }
+    .siri-card h3, .siri-card > p { text-align: center; }
+    .siri-section { display: flex; flex-direction: column; gap: 8px; }
+    .siri-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--muted); }
+    .siri-url-row { display: flex; gap: 8px; }
+    .siri-url {
+      flex: 1; min-width: 0; height: 42px;
+      background: var(--card); border: 1px solid var(--card-border);
+      border-radius: 12px; color: #e2e8f0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
+      padding: 0 10px; outline: none;
+    }
+    .btn-copy {
+      height: 42px; padding: 0 14px; border-radius: 12px; border: none;
+      background: #a855f7; color: #fff; font-weight: 700; font-size: 0.8rem; cursor: pointer; white-space: nowrap;
+    }
+    .siri-warn { font-size: 0.74rem; color: #fbbf24; line-height: 1.4; }
+    .siri-steps { font-size: 0.8rem; color: #cbd5e1; line-height: 1.5; padding-left: 18px; margin: 0; }
+    .siri-steps li { margin-bottom: 4px; }
+    .siri-steps b { color: #fff; }
+    .siri-say {
+      text-align: center; font-size: 0.95rem; font-weight: 800; color: #d8b4fe;
+      background: rgba(168, 85, 247, 0.12); border: 1px dashed rgba(168, 85, 247, 0.4);
+      border-radius: 12px; padding: 10px;
+    }
+    .btn-get-shortcut {
+      display: block; text-align: center; text-decoration: none;
+      height: 46px; line-height: 46px; border-radius: 14px;
+      background: linear-gradient(135deg, #a855f7, #7c3aed); color: #fff; font-weight: 700; font-size: 0.95rem;
+    }
+    .siri-links { display: flex; justify-content: space-between; gap: 10px; }
+    .siri-link { background: none; border: none; color: var(--muted); font-size: 0.78rem; cursor: pointer; text-decoration: underline; padding: 4px 0; }
+    .siri-link.danger { color: #f87171; }
+    .siri-note { font-size: 0.72rem; color: var(--muted); line-height: 1.4; }
+    .siri-err { font-size: 0.8rem; color: var(--danger); text-align: center; min-height: 16px; }
 
     /* Nickname-style modal (used by the 1-Tap request) */
     .nickname-modal {
@@ -704,6 +759,57 @@
     </div>
   </div>
 
+  <!-- "Hey Siri" setup modal (whitelisted devices only) -->
+  <div class="nickname-modal" id="siri-modal">
+    <div class="nickname-card siri-card">
+      <h3>🎙 "Hey Siri, open garage door"</h3>
+      <p>Run your garage from Siri, the lock screen, CarPlay or Apple Watch — no PIN, no app to open.</p>
+
+      <!-- State A: not enabled yet -->
+      <div class="siri-section" id="siri-state-off">
+        <div class="siri-note">Siri access uses a private link tied to this device. It only works while this device has 1-Tap access, and the admin can revoke it at any time. Every Siri open is logged and counted just like a tap in the app.</div>
+        <button class="btn-save-nick" id="btn-siri-enable" type="button" onclick="enableSiri('ensure')">Enable Siri access</button>
+      </div>
+
+      <!-- State B: enabled -->
+      <div class="siri-section" id="siri-state-on" style="display:none">
+        <div class="siri-label">Your private Siri link</div>
+        <div class="siri-url-row">
+          <input type="text" class="siri-url" id="siri-url" readonly />
+          <button class="btn-copy" id="btn-siri-copy" type="button" onclick="copySiriUrl()">Copy</button>
+        </div>
+        <div class="siri-warn">⚠️ Keep this private — anyone with the link can open the door. Don't open it in a browser (that triggers the door).</div>
+
+        <div id="siri-shortcut-wrap" style="display:none">
+          <div class="siri-label">Fastest: get the ready-made Shortcut</div>
+          <a class="btn-get-shortcut" id="siri-shortcut-link" href="#" target="_blank" rel="noopener">Get Shortcut</a>
+          <div class="siri-note" style="margin-top:6px">When the Shortcut asks for your link, paste the one above. That's it.</div>
+        </div>
+
+        <div class="siri-label" id="siri-manual-label">Build it yourself (2 minutes)</div>
+        <ol class="siri-steps">
+          <li>Copy the link above.</li>
+          <li>Open the <b>Shortcuts</b> app → tap <b>+</b>.</li>
+          <li>Add action <b>Get Contents of URL</b> → paste the link.</li>
+          <li>Add action <b>Show Result</b> (so Siri tells you it worked).</li>
+          <li>Name it <b>Open garage door</b> → Done.</li>
+        </ol>
+        <div class="siri-say">"Hey Siri, open garage door"</div>
+        <div class="siri-note">Android? Use the free <b>HTTP Shortcuts</b> app with the same link, then run it from a Google Assistant routine.</div>
+
+        <div class="siri-links">
+          <button class="siri-link" id="btn-siri-regen" type="button" onclick="enableSiri('regenerate')">Regenerate link</button>
+          <button class="siri-link danger" id="btn-siri-disable" type="button" onclick="disableSiri()">Disable Siri</button>
+        </div>
+      </div>
+
+      <div class="siri-err" id="siri-err"></div>
+      <div class="nickname-actions">
+        <button class="btn-cancel-nick" id="btn-siri-close" type="button" onclick="closeSiriModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Center Portal Container -->
   <div class="portal-container">
     <div class="door-icon" id="door-icon">
@@ -722,6 +828,7 @@
     <div class="whitelist-verified-card" id="whitelist-card">
       <div class="title" id="whitelist-device-name">✓ Whitelisted Device</div>
       <div class="subtitle">PIN-less 1-Tap Access Enabled</div>
+      <button class="siri-btn" id="btn-siri-setup" type="button" onclick="openSiriModal()">🎙 Set up "Hey Siri"</button>
     </div>
 
     <!-- Re-verify Card (Shown when a whitelisted device's signature partially changed) -->
@@ -822,6 +929,10 @@
     let oneTapRequested = false;
     // True once this device has unlocked the admin panel (persisted server-side)
     let isAdmin = false;
+    // "Hey Siri" integration state (whitelisted devices only)
+    let siriEnabled = false;
+    let siriShortcutUrl = "";
+    const siriBtn = document.getElementById("btn-siri-setup");
     // Auto-generated device name (e.g. "iPhone (iOS) (Safari)") — not a real nickname
     let defaultDeviceName = "";
 
@@ -875,6 +986,9 @@
         hasOpenedWithPin = Boolean(data.has_opened_with_pin);
         oneTapRequested = Boolean(data.one_tap_requested);
         isAdmin = Boolean(data.is_admin);
+        siriEnabled = Boolean(data.siri_enabled);
+        siriShortcutUrl = data.siri_shortcut_url || "";
+        renderSiriButton();
         renderRequestButton();
         renderAdminCta(data.pending_requests || 0);
 
@@ -1044,6 +1158,107 @@
         if (!isWhitelisted) setTimeout(clearPin, 2000);
         else openBtn.disabled = false;
       }
+    }
+
+    // ── "Hey Siri" setup ───────────────────────────────────
+    function renderSiriButton() {
+      if (!siriBtn) return;
+      siriBtn.classList.toggle("enabled", siriEnabled);
+      siriBtn.innerText = siriEnabled ? '🎙 "Hey Siri" enabled · Manage' : '🎙 Set up "Hey Siri"';
+    }
+
+    function showSiriState(on, data) {
+      document.getElementById("siri-state-off").style.display = on ? "none" : "flex";
+      document.getElementById("siri-state-on").style.display = on ? "flex" : "none";
+      if (on && data) {
+        document.getElementById("siri-url").value = data.trigger_url || "";
+        const link = data.siri_shortcut_url || siriShortcutUrl;
+        const wrap = document.getElementById("siri-shortcut-wrap");
+        if (link) {
+          document.getElementById("siri-shortcut-link").href = link;
+          wrap.style.display = "block";
+          document.getElementById("siri-manual-label").innerText = "Or build it yourself (2 minutes)";
+        } else {
+          wrap.style.display = "none";
+        }
+      }
+    }
+
+    async function openSiriModal() {
+      haptic(20);
+      document.getElementById("siri-err").textContent = "";
+      document.getElementById("siri-modal").classList.add("show");
+      if (siriEnabled) {
+        // Already enabled: fetch the existing link so it can be copied again
+        await enableSiri("ensure");
+      } else {
+        showSiriState(false);
+      }
+    }
+
+    function closeSiriModal() {
+      document.getElementById("siri-modal").classList.remove("show");
+    }
+
+    async function enableSiri(action) {
+      const errEl = document.getElementById("siri-err");
+      errEl.textContent = "";
+      if (action === "regenerate" && !confirm("Regenerate the link? Your existing Shortcut will stop working until you paste the new link into it.")) return;
+      try {
+        const res = await fetch("/api/device/siri-key", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ device_token: deviceToken, action: action || "ensure" })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          siriEnabled = true;
+          renderSiriButton();
+          showSiriState(true, data);
+          if (action !== "ensure") haptic([20, 40, 20]);
+        } else {
+          showSiriState(false);
+          errEl.textContent = data.error || "Could not enable Siri access.";
+        }
+      } catch (e) {
+        errEl.textContent = "Network error — try again.";
+      }
+    }
+
+    async function disableSiri() {
+      if (!confirm("Disable Siri access for this device? The link will stop working immediately.")) return;
+      const errEl = document.getElementById("siri-err");
+      try {
+        const res = await fetch("/api/device/siri-key", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ device_token: deviceToken, action: "disable" })
+        });
+        if (res.ok) {
+          siriEnabled = false;
+          renderSiriButton();
+          showSiriState(false);
+          haptic(60);
+        } else {
+          errEl.textContent = "Could not disable Siri access.";
+        }
+      } catch (e) {
+        errEl.textContent = "Network error — try again.";
+      }
+    }
+
+    async function copySiriUrl() {
+      const input = document.getElementById("siri-url");
+      const btn = document.getElementById("btn-siri-copy");
+      try {
+        await navigator.clipboard.writeText(input.value);
+      } catch (e) {
+        input.focus(); input.select();
+        try { document.execCommand("copy"); } catch (_) { /* ignore */ }
+      }
+      haptic(20);
+      btn.innerText = "Copied ✓";
+      setTimeout(() => { btn.innerText = "Copy"; }, 1800);
     }
 
     // ── 1-Tap access requests ─────────────────────────────
@@ -1266,7 +1481,7 @@
                   Opened: <strong>${d.open_count} times</strong> · Last seen: ${d.last_seen}
                 </div>
               </div>
-              <div>${statusTag}</div>
+              <div>${statusTag}${d.siri_enabled ? ' <span class="tag siri">🎙 Siri</span>' : ''}</div>
             </div>
             <div class="device-actions">
               ${d.is_whitelisted 

@@ -13,6 +13,9 @@ GARAGE_ADMIN_PIN = "0000"
 # Can be Virtual Smart Home Alexa Routine trigger, Home Assistant webhook, or IFTTT.
 GARAGE_WEBHOOK_URL = "https://www.virtualsmarthome.xyz/url_routine_trigger/activate.php?trigger=YOUR_TRIGGER_ID&token=YOUR_TOKEN&response=json"
 
+# Optional: iCloud link to a shared "Open garage door" Apple Shortcut (shows a "Get Shortcut" button)
+SIRI_SHORTCUT_URL = ""
+
 [[d1_databases]]
 binding = "DB"
 database_name = "garage-db"
