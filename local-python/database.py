@@ -305,12 +305,19 @@ def count_pending_requests() -> int:
         ).fetchone()
         return int(row["n"]) if row else 0
 
-def request_one_tap(device_token: str) -> Tuple[str, Optional[str]]:
+def request_one_tap(device_token: str, nickname: str) -> Tuple[str, Optional[str]]:
     """
-    Records a request for PIN-less 1-tap access.
+    Records a request for PIN-less 1-tap access. A nickname is required so the
+    admin knows who is asking; it is saved as the device's friendly name.
     Returns (status, error): status is 'requested' | 'already_requested' |
     'already_whitelisted' | 'error' (with a message).
     """
+    nickname = (nickname or "").strip()[:24]
+    if len(nickname) < 2:
+        return "error", "Please enter a nickname (at least 2 characters) so the admin knows who you are"
+    if any(ch in nickname for ch in "<>\"'\\"):
+        return "error", "Nickname contains invalid characters"
+
     with get_connection() as conn:
         row = conn.execute(
             "SELECT is_whitelisted, has_opened_with_pin, is_blocked, one_tap_requested "
@@ -326,15 +333,15 @@ def request_one_tap(device_token: str) -> Tuple[str, Optional[str]]:
         # Only devices that have proven they know the PIN may ask.
         if not row["has_opened_with_pin"]:
             return "error", "Open the door with the PIN first"
-        if row["one_tap_requested"]:
-            return "already_requested", None
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         conn.execute(
-            "UPDATE devices SET one_tap_requested = 1, one_tap_requested_at = ? WHERE device_token = ?",
-            (now_str, device_token),
+            "UPDATE devices SET friendly_name = ?, one_tap_requested = 1, "
+            "one_tap_requested_at = COALESCE(NULLIF(one_tap_requested_at, ''), ?) "
+            "WHERE device_token = ?",
+            (nickname, now_str, device_token),
         )
         conn.commit()
-        return "requested", None
+        return ("already_requested" if row["one_tap_requested"] else "requested"), None
 
 def mark_admin(device_token: str):
     """Anyone who unlocks the admin panel is an administrator: remember it on their device."""

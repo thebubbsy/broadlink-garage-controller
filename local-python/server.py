@@ -109,6 +109,7 @@ class AdminAuthRequest(BaseModel):
 
 class OneTapRequest(BaseModel):
     device_token: str
+    nickname: str = ""
 
 class AdminWhitelistRequest(BaseModel):
     admin_pin: str
@@ -176,11 +177,12 @@ async def register_device(request: Request, body: RegisterRequest):
 # --- 1-Tap Access Request ---
 @app.post("/api/device/request-onetap")
 async def request_one_tap(body: OneTapRequest):
-    status, error = database.request_one_tap(body.device_token)
+    status, error = database.request_one_tap(body.device_token, body.nickname)
     if status == "error":
-        code = 404 if "not found" in (error or "") else 403
+        msg = error or ""
+        code = 404 if "not found" in msg else (400 if "ickname" in msg else 403)
         return JSONResponse(status_code=code, content={"error": error})
-    return {"status": status}
+    return {"status": status, "nickname": body.nickname.strip()[:24]}
 
 # --- Garage Trigger (PIN or Strict 4-Factor Whitelist) ---
 @app.post("/api/trigger")

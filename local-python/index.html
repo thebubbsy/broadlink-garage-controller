@@ -486,6 +486,54 @@
       color: #f87171;
     }
 
+    /* Nickname-style modal (used by the 1-Tap request) */
+    .nickname-modal {
+      position: fixed; inset: 0;
+      background: rgba(4,7,13,0.82);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 300;
+      display: none; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .nickname-modal.show { display: flex; }
+    .nickname-card {
+      background: #0f1629;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 24px;
+      width: 100%; max-width: 340px;
+      padding: 24px 22px 20px;
+      display: flex; flex-direction: column; gap: 16px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+    }
+    .nickname-card h3 {
+      font-size: 1.05rem; font-weight: 800; color: #fff; text-align: center;
+    }
+    .nickname-card p {
+      font-size: 0.82rem; color: var(--muted); text-align: center; margin-top: -8px;
+    }
+    .nickname-input {
+      width: 100%; height: 50px;
+      background: var(--card); border: 1px solid var(--card-border);
+      border-radius: 14px; color: #fff;
+      font-size: 1.1rem; text-align: center;
+      outline: none; padding: 0 14px;
+    }
+    .nickname-input:focus { border-color: var(--accent); }
+    .nickname-actions { display: flex; gap: 10px; }
+    .btn-cancel-nick {
+      flex: 1; height: 46px; background: #1e293b; color: var(--muted);
+      border: 1px solid var(--card-border); border-radius: 14px;
+      font-size: 0.9rem; font-weight: 600; cursor: pointer;
+    }
+    .btn-save-nick {
+      flex: 2; height: 46px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+      color: #fff; border: none; border-radius: 14px;
+      font-size: 0.95rem; font-weight: 700; cursor: pointer;
+    }
+    .nickname-err { font-size: 0.8rem; color: var(--danger); text-align: center; min-height: 16px; }
+
     /* Request 1-Tap access button (shown after a successful PIN open) */
     .request-onetap-btn {
       display: none;
@@ -641,6 +689,21 @@
     </button>
   </header>
 
+  <!-- 1-Tap request modal: a nickname is required before the request is sent -->
+  <div class="nickname-modal" id="request-modal">
+    <div class="nickname-card">
+      <h3>⚡ Request 1-Tap Access</h3>
+      <p>Choose a nickname so the admin knows who's asking. This is how you'll appear in the admin panel.</p>
+      <input type="text" class="nickname-input" id="request-nickname-input"
+             maxlength="24" placeholder="e.g. Dave Next Door" autocomplete="off" />
+      <div class="nickname-err" id="request-err"></div>
+      <div class="nickname-actions">
+        <button class="btn-cancel-nick" id="btn-cancel-request" onclick="closeRequestModal()">Cancel</button>
+        <button class="btn-save-nick" id="btn-send-request" onclick="sendOneTapRequest()">Send Request</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Center Portal Container -->
   <div class="portal-container">
     <div class="door-icon" id="door-icon">
@@ -759,6 +822,8 @@
     let oneTapRequested = false;
     // True once this device has unlocked the admin panel (persisted server-side)
     let isAdmin = false;
+    // Auto-generated device name (e.g. "iPhone (iOS) (Safari)") — not a real nickname
+    let defaultDeviceName = "";
 
     // Initialize Device Identification
     function getOrCreateDeviceToken() {
@@ -806,6 +871,7 @@
 
         isWhitelisted = data.is_whitelisted;
         reverifyCard.classList.remove("show");
+        defaultDeviceName = `${data.platform || ""} (${data.browser || ""})`;
         hasOpenedWithPin = Boolean(data.has_opened_with_pin);
         oneTapRequested = Boolean(data.one_tap_requested);
         isAdmin = Boolean(data.is_admin);
@@ -999,34 +1065,65 @@
       }
     }
 
-    async function requestOneTap() {
+    // Tapping "Request 1-Tap" opens a modal that REQUIRES a nickname before sending.
+    function requestOneTap() {
       if (oneTapRequested || requestBtn.disabled) return;
       haptic(25);
-      requestBtn.disabled = true;
+      openRequestModal();
+    }
+
+    function openRequestModal() {
+      const input = document.getElementById("request-nickname-input");
+      const saved = localStorage.getItem("garage_nickname") || "";
+      // Pre-fill only with a real nickname, never the auto-generated device name
+      input.value = (saved && saved !== defaultDeviceName) ? saved : "";
+      document.getElementById("request-err").textContent = "";
+      document.getElementById("request-modal").classList.add("show");
+      setTimeout(() => input.focus(), 150);
+    }
+
+    function closeRequestModal() {
+      document.getElementById("request-modal").classList.remove("show");
+    }
+
+    async function sendOneTapRequest() {
+      const input = document.getElementById("request-nickname-input");
+      const errEl = document.getElementById("request-err");
+      const sendBtn = document.getElementById("btn-send-request");
+      const nickname = input.value.trim();
+      errEl.textContent = "";
+      if (nickname.length < 2) { errEl.textContent = "Please enter a nickname (at least 2 characters)."; return; }
+
+      sendBtn.disabled = true;
       try {
         const res = await fetch("/api/device/request-onetap", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ device_token: deviceToken })
+          body: JSON.stringify({ device_token: deviceToken, nickname: nickname })
         });
         const data = await res.json();
         if (res.ok) {
+          if (data.nickname) localStorage.setItem("garage_nickname", data.nickname);
           oneTapRequested = true;
           renderRequestButton();
+          closeRequestModal();
           statusEl.className = "status-msg success";
-          statusEl.innerText = "Request sent! The admin will review it.";
+          statusEl.innerText = `Request sent as "${data.nickname || nickname}"! The admin will review it.`;
           haptic([20, 40, 20]);
         } else {
-          requestBtn.disabled = false;
-          statusEl.className = "status-msg error";
-          statusEl.innerText = data.error || "Could not send request.";
+          errEl.textContent = data.error || "Could not send request.";
         }
       } catch (e) {
-        requestBtn.disabled = false;
-        statusEl.className = "status-msg error";
-        statusEl.innerText = "Network error — try again.";
+        errEl.textContent = "Network error — try again.";
+      } finally {
+        sendBtn.disabled = false;
       }
     }
+
+    document.getElementById("request-nickname-input").addEventListener("keydown", function(e) {
+      if (e.key === "Enter") sendOneTapRequest();
+      if (e.key === "Escape") closeRequestModal();
+    });
 
     // Admins see how many devices are waiting for a 1-Tap decision.
     function renderAdminCta(pending) {
