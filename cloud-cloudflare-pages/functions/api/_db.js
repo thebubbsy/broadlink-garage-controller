@@ -25,27 +25,47 @@ export function parseDeviceTraits(userAgent) {
 export function verifyDeviceSignature(storedDevice, currentUa, currentHwFingerprint) {
   const { platform, browser } = parseDeviceTraits(currentUa);
 
+  // Evaluate every factor (no short-circuit) so the client can report "3 of 4 matched".
+  // Condition 1 (token) is already satisfied by the caller having looked the device up.
+  const checks = [
+    { factor: "token", label: "Device token", ok: true },
+  ];
+
   // Condition 2: Platform Match
-  if (storedDevice.platform && storedDevice.platform !== "Unknown Device") {
-    if (storedDevice.platform !== platform) {
-      return { valid: false, reason: `OS mismatch: expected ${storedDevice.platform}, got ${platform}` };
-    }
-  }
+  const platformEnforced = storedDevice.platform && storedDevice.platform !== "Unknown Device";
+  checks.push({
+    factor: "platform", label: "Operating system",
+    ok: !platformEnforced || storedDevice.platform === platform,
+    expected: storedDevice.platform, got: platform
+  });
 
   // Condition 3: Browser Match
-  if (storedDevice.browser && storedDevice.browser !== "Unknown Browser" && storedDevice.browser !== "Mobile Browser") {
-    if (storedDevice.browser !== browser) {
-      return { valid: false, reason: `Browser mismatch: expected ${storedDevice.browser}, got ${browser}` };
-    }
-  }
+  const browserEnforced = storedDevice.browser && storedDevice.browser !== "Unknown Browser" && storedDevice.browser !== "Mobile Browser";
+  checks.push({
+    factor: "browser", label: "Browser",
+    ok: !browserEnforced || storedDevice.browser === browser,
+    expected: storedDevice.browser, got: browser
+  });
 
   // Condition 4: Hardware Geometry Match
   const storedHw = storedDevice.hardware_fingerprint;
-  if (storedHw && currentHwFingerprint) {
-    if (storedHw !== currentHwFingerprint) {
-      return { valid: false, reason: "Hardware display signature mismatch" };
-    }
+  const hwEnforced = Boolean(storedHw && currentHwFingerprint);
+  checks.push({
+    factor: "display", label: "Screen",
+    ok: !hwEnforced || storedHw === currentHwFingerprint
+  });
+
+  const failed = checks.filter(c => !c.ok);
+  const matched = checks.length - failed.length;
+
+  if (failed.length === 0) {
+    return { valid: true, reason: "Signature verified (4/4 conditions met)", matched, total: checks.length, failed: [], checks };
   }
 
-  return { valid: true, reason: "Signature verified (4/4 conditions met)" };
+  const reason = failed.map(c => {
+    if (c.factor === "display") return "Screen changed (different resolution, scaling or colour depth)";
+    return `${c.label} changed (expected ${c.expected}, got ${c.got})`;
+  }).join("; ");
+
+  return { valid: false, reason, matched, total: checks.length, failed: failed.map(c => c.factor), checks };
 }

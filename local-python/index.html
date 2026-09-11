@@ -236,6 +236,36 @@
       color: var(--muted);
     }
 
+    /* Re-verify card: whitelisted device whose signature partially changed */
+    .reverify-card {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      padding: 12px 18px;
+      border-radius: 16px;
+      width: 100%;
+      text-align: center;
+    }
+    .reverify-card.show { display: flex; }
+    .reverify-card .title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #fbbf24;
+    }
+    .reverify-card .reason {
+      font-size: 0.8rem;
+      color: #fcd34d;
+      line-height: 1.35;
+    }
+    .reverify-card .hint {
+      font-size: 0.76rem;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
     /* Status Label */
     .status-msg {
       font-size: 0.88rem;
@@ -541,6 +571,13 @@
       <div class="subtitle">PIN-less 1-Tap Access Enabled</div>
     </div>
 
+    <!-- Re-verify Card (Shown when a whitelisted device's signature partially changed) -->
+    <div class="reverify-card" id="reverify-card">
+      <div class="title" id="reverify-title">⚠ Device Re-verification Needed</div>
+      <div class="reason" id="reverify-reason"></div>
+      <div class="hint">Enter your PIN once to re-verify this device. 1-tap access will be restored straight away.</div>
+    </div>
+
     <!-- PIN dots (Shown when PIN required) -->
     <div class="pin-display" id="pin-container">
       <div class="pin-dot" id="dot-0"></div>
@@ -618,6 +655,10 @@
     const deviceBadge = document.getElementById("device-badge");
     const badgeText = document.getElementById("badge-text");
     const whitelistDeviceName = document.getElementById("whitelist-device-name");
+    const reverifyCard = document.getElementById("reverify-card");
+    const reverifyReason = document.getElementById("reverify-reason");
+    // True while a whitelisted device is being asked to re-enter the PIN after a signature mismatch
+    let reverifyPending = false;
 
     // Initialize Device Identification
     function getOrCreateDeviceToken() {
@@ -656,11 +697,15 @@
         const res = await fetch("/api/device/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ device_token: deviceToken })
+          body: JSON.stringify({ device_token: deviceToken, hardware_fingerprint: getHardwareFingerprint() })
         });
 
         const data = await res.json();
+        // While re-verifying, stay in PIN mode even though the server still reports the device as whitelisted
+        if (reverifyPending && data.is_whitelisted) return;
+
         isWhitelisted = data.is_whitelisted;
+        reverifyCard.classList.remove("show");
 
         if (isWhitelisted) {
           // Device is whitelisted: Disable PIN pad, show verified card, enable open button immediately!
@@ -759,7 +804,7 @@
       statusEl.className = "status-msg";
       statusEl.innerText = "Transmitting RF signal...";
 
-      const payload = { device_token: deviceToken };
+      const payload = { device_token: deviceToken, hardware_fingerprint: getHardwareFingerprint() };
       if (!isWhitelisted) {
         payload.pin = currentPin;
       }
@@ -779,7 +824,15 @@
           statusEl.innerText = "Door activated!";
           haptic([40, 60, 40]);
 
-          if (!isWhitelisted) {
+          if (reverifyPending) {
+            // Correct PIN rebinds the device signature server-side: restore 1-tap mode
+            statusEl.innerText = "Door activated! Device re-verified — 1-tap restored.";
+            setTimeout(() => {
+              reverifyPending = false;
+              clearPin();
+              initDevice();
+            }, 2500);
+          } else if (!isWhitelisted) {
             setTimeout(clearPin, 2500);
           } else {
             setTimeout(() => {
@@ -788,6 +841,10 @@
             }, 3000);
           }
         } else {
+          if (isWhitelisted && data.requires_pin) {
+            enterReverifyMode(data);
+            return;
+          }
           statusEl.className = "status-msg error";
           statusEl.innerText = data.detail || "Access Denied";
           
@@ -813,6 +870,33 @@
         if (!isWhitelisted) setTimeout(clearPin, 2000);
         else openBtn.disabled = false;
       }
+    }
+
+    // Whitelisted device failed the signature gate (e.g. 3 of 4 factors matched):
+    // explain which factor changed and fall back to the keypad. A correct PIN
+    // rebinds the signature on the server, after which initDevice() restores 1-tap.
+    function enterReverifyMode(data) {
+      reverifyPending = true;
+      isWhitelisted = false;
+      currentPin = "";
+
+      const matched = Number.isInteger(data.matched) ? data.matched : null;
+      const total = Number.isInteger(data.total) ? data.total : null;
+      const summary = (matched !== null && total !== null) ? ` (${matched} of ${total} checks matched)` : "";
+      reverifyReason.innerText = (data.reason || "Your device looks different from when it was whitelisted") + summary + ".";
+
+      whitelistCard.classList.remove("show");
+      reverifyCard.classList.add("show");
+      deviceBadge.classList.remove("whitelisted");
+      badgeText.innerText = "Re-verify Device";
+      doorIcon.classList.remove("whitelisted");
+      openBtn.classList.remove("whitelisted-ready");
+      keypad.classList.remove("hidden");
+      pinContainer.style.display = "flex";
+      updateDots();
+      statusEl.className = "status-msg";
+      statusEl.innerText = "Enter 4-digit PIN to re-verify";
+      haptic(120);
     }
 
     // --- ADMIN DASHBOARD SCRIPT ---

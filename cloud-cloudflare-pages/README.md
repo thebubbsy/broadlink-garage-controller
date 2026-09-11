@@ -202,9 +202,22 @@ npx wrangler d1 execute garage-db --remote --file=schema_v2.sql
 
 ---
 
-### Step 4: Configure Webhook Trigger
+### Step 4: Learn the Remote in the BroadLink App & Configure the Webhook Trigger
 
-To bridge Cloudflare Pages to your physical BroadLink RM4 Pro without running local servers, use a cloud webhook bridge such as **Virtual Smart Home (URL Routine Trigger)** or **Home Assistant Cloud**:
+> **Note:** The cloud version does **not** use the `learn_rf.py` CLI tool from `local-python/` — that tool talks to the RM4 Pro over your LAN, which a Cloudflare edge function cannot reach. Instead, the remote is learned inside the BroadLink app and fired through Alexa.
+
+**4a. Learn the garage button and put it in a Scene (BroadLink app)**
+
+1. Open the **BroadLink** app and select your **RM4 Pro**.
+2. Tap **+ Add** → **Remote control** → choose **RF** (not IR) and a generic type such as *Curtain* / *Light* / *Custom*.
+3. Tap **Learn**, then press and hold your physical garage remote's button until the app confirms the frequency lock, release, and press it again when prompted to capture the code. Name the button (e.g. `Garage`).
+4. Test the new button in the app — your door should move.
+5. Create a **Scene** (BroadLink app → **Scenes** → **+**) containing just that one button, e.g. `Garage Door`. Alexa can run scenes but cannot press individual learned buttons, so this step is required.
+6. In the **Amazon Alexa app**: **More → Skills & Games**, enable the **BroadLink** skill and sign in, then **Discover Devices**. The `Garage Door` scene should appear under **Scenes**.
+
+**4b. Bridge Cloudflare → Alexa with a webhook**
+
+To reach Alexa from a Cloudflare Pages function without running local servers, use a cloud webhook bridge such as **Virtual Smart Home (URL Routine Trigger)** or **Home Assistant Cloud**:
 
 1. Visit [Virtual Smart Home](https://www.virtualsmarthome.xyz/url_routine_trigger/) and log in with your Amazon account.
 2. Create a new trigger button (e.g., `Garage Door Trigger`).
@@ -213,8 +226,9 @@ To bridge Cloudflare Pages to your physical BroadLink RM4 Pro without running lo
    - Install the **URL Routine Trigger** skill.
    - Create an Alexa Routine:
      - **When**: Smart Home -> `Garage Door Trigger` opens/triggers.
-     - **Action**: Smart Home -> Control your BroadLink garage door device/scene.
+     - **Action**: Smart Home -> **Scenes** -> `Garage Door` (the BroadLink scene from 4a).
 5. Add the webhook URL to your `wrangler.toml` under `[vars]` as `GARAGE_WEBHOOK_URL`.
+6. Test it: open the webhook URL in a browser — Alexa should run the routine and the door should move. If the routine fires but the door doesn't, re-check that the routine targets the scene (not the raw button).
 
 ---
 

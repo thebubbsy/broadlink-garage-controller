@@ -1,4 +1,4 @@
-import { verifyDeviceSignature } from "./_db.js";
+import { verifyDeviceSignature, parseDeviceTraits } from "./_db.js";
 
 export async function onRequestPost({ request, env }) {
   const ip = request.headers.get("cf-connecting-ip") || "unknown";
@@ -22,25 +22,37 @@ export async function onRequestPost({ request, env }) {
 
     if (device && device.is_whitelisted && !device.is_blocked) {
       const verification = verifyDeviceSignature(device, ua, body.hardware_fingerprint || "");
-      if (!verification.valid) {
+      // Signature mismatch with a PIN supplied: skip 1-tap and fall through to
+      // PIN validation below, which rebinds the signature on success.
+      if (!verification.valid && !body.pin) {
+        // Partial match: tell the client exactly which factor changed so it can
+        // drop into re-verify mode. A correct PIN rebinds the signature below.
         return new Response(JSON.stringify({
-          detail: "Security Check: " + verification.reason + ". PIN required."
+          detail: "Security Check: " + verification.reason + ". PIN required.",
+          requires_pin: true,
+          reason: verification.reason,
+          matched: verification.matched,
+          total: verification.total,
+          failed: verification.failed,
+          checks: verification.checks
         }), { status: 403, headers: { "Content-Type": "application/json" } });
       }
 
-      await env.DB.prepare(
-        "UPDATE devices SET open_count = open_count + 1, last_seen = ?, ip_address = ? WHERE device_token = ?"
-      ).bind(now, ip, body.device_token).run();
+      if (verification.valid) {
+        await env.DB.prepare(
+          "UPDATE devices SET open_count = open_count + 1, last_seen = ?, ip_address = ? WHERE device_token = ?"
+        ).bind(now, ip, body.device_token).run();
 
-      await logEvent(env, body.device_token, device.friendly_name || "", "whitelisted_4factor", ip, now);
-      await dispatchTriggerWebhook(env);
+        await logEvent(env, body.device_token, device.friendly_name || "", "whitelisted_4factor", ip, now);
+        await dispatchTriggerWebhook(env);
 
-      return new Response(JSON.stringify({
-        status: "success",
-        auth: "whitelisted_4factor",
-        device: device.friendly_name,
-        message: "Door triggered via 4-Factor Verified Device."
-      }), { headers: { "Content-Type": "application/json" } });
+        return new Response(JSON.stringify({
+          status: "success",
+          auth: "whitelisted_4factor",
+          device: device.friendly_name,
+          message: "Door triggered via 4-Factor Verified Device."
+        }), { headers: { "Content-Type": "application/json" } });
+      }
     }
   }
 
@@ -64,13 +76,16 @@ export async function onRequestPost({ request, env }) {
     ).bind(body.device_token).first();
     friendlyName = existing ? (existing.friendly_name || "") : "";
 
+    // A correct PIN is proof of the legitimate user: rebind the full device
+    // signature (OS / browser / screen) so 1-tap access is restored.
+    const { platform, browser } = parseDeviceTraits(ua);
     await env.DB.prepare(`
       UPDATE devices
       SET has_opened_with_pin = 1, open_count = open_count + 1,
-          last_seen = ?, ip_address = ?,
+          last_seen = ?, ip_address = ?, user_agent = ?, platform = ?, browser = ?,
           hardware_fingerprint = COALESCE(NULLIF(?, ''), hardware_fingerprint)
       WHERE device_token = ?
-    `).bind(now, ip, body.hardware_fingerprint || "", body.device_token).run();
+    `).bind(now, ip, ua, platform, browser, body.hardware_fingerprint || "", body.device_token).run();
   }
 
   await logEvent(env, body.device_token || "", friendlyName, "pin", ip, now);

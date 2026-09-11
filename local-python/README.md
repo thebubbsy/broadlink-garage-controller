@@ -223,7 +223,7 @@ Find your Android phone\'s local IP address (Settings -> Wi-Fi or run `ip route`
 
 ## 🪟 Windows Background Service Setup
 
-If running on a Windows PC or home server, you can install the standalone trigger daemon as a Windows Service that starts automatically on boot:
+If running on a Windows PC or home server, you can install `server.py` as a Windows Service so the web app starts automatically on boot and keeps running without a logged-in user. It reads the same `.env` file and writes logs to `garage_service.log`:
 
 ```powershell
 # In an elevated PowerShell prompt (Run as Administrator):
@@ -233,7 +233,12 @@ python garage_rf_service.py start
 # To stop or remove:
 python garage_rf_service.py stop
 python garage_rf_service.py remove
+
+# To run it in the foreground for troubleshooting:
+python garage_rf_service.py debug
 ```
+
+> If `start` fails with a "module not found" error, run `python -m pywin32_postinstall -install` once as Administrator, then start the service again. `pywin32` is installed automatically by `requirements.txt` on Windows.
 
 ---
 

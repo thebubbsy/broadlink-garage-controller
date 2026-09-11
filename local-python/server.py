@@ -195,34 +195,44 @@ async def trigger_garage(request: Request, body: TriggerRequest):
             # Condition 2: Platform Family (iPhone / Android / etc.)
             # Condition 3: Browser Family (Safari / Chrome / etc.)
             # Condition 4: Hardware Geometry & Traits Fingerprint
-            is_valid, reason = database.verify_device_signature(
+            verification = database.verify_device_signature(
                 device, ua, body.hardware_fingerprint or ""
             )
 
-            if not is_valid:
+            # Signature mismatch with a PIN supplied: skip 1-tap and fall through to
+            # PIN validation below, which rebinds the signature on success.
+            if not verification["valid"] and not body.pin:
                 time.sleep(0.6)  # Defense against automated probing
-                raise HTTPException(
-                    status_code=403, 
-                    detail=f"Security Alert: {reason}. Manual PIN verification required."
-                )
+                # Partial match: tell the client exactly which factor changed so it can
+                # drop into re-verify mode. A correct PIN rebinds the signature below.
+                return JSONResponse(status_code=403, content={
+                    "detail": f"Security Alert: {verification['reason']}. Manual PIN verification required.",
+                    "requires_pin": True,
+                    "reason": verification["reason"],
+                    "matched": verification["matched"],
+                    "total": verification["total"],
+                    "failed": verification["failed"],
+                    "checks": verification["checks"],
+                })
 
             # All 4 conditions satisfied!
-            try:
-                rf_bytes = bytes.fromhex(hex_data)
-                dev = get_broadlink_device()
-                dev.send_data(rf_bytes)
-                database.record_whitelist_success(body.device_token, ip)
-                return {
-                    "status": "success",
-                    "auth": "whitelisted_4factor",
-                    "device": device["friendly_name"],
-                    "conditions_met": "4 of 4 verified",
-                    "message": "Door triggered via 4-Factor Verified Device."
-                }
-            except Exception as e:
-                global _cached_device
-                _cached_device = None
-                raise HTTPException(status_code=500, detail=f"Broadlink error: {str(e)}")
+            if verification["valid"]:
+                try:
+                    rf_bytes = bytes.fromhex(hex_data)
+                    dev = get_broadlink_device()
+                    dev.send_data(rf_bytes)
+                    database.record_whitelist_success(body.device_token, ip)
+                    return {
+                        "status": "success",
+                        "auth": "whitelisted_4factor",
+                        "device": device["friendly_name"],
+                        "conditions_met": "4 of 4 verified",
+                        "message": "Door triggered via 4-Factor Verified Device."
+                    }
+                except Exception as e:
+                    global _cached_device
+                    _cached_device = None
+                    raise HTTPException(status_code=500, detail=f"Broadlink error: {str(e)}")
 
     # 2. Check PIN if not whitelisted or if signature check failed
     if not body.pin:

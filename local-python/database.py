@@ -79,33 +79,70 @@ def verify_device_signature(
     stored_device: Dict[str, Any], 
     current_ua: str, 
     current_hw_fingerprint: str
-) -> Tuple[bool, str]:
+) -> Dict[str, Any]:
     """
-    Validates the 4 strict conditions:
+    Validates the 4 strict conditions and reports every factor (no short-circuit)
+    so the client can tell the user "3 of 4 checks matched":
     1. Cryptographic Token (matched by caller)
     2. Platform / OS Family
     3. Browser Engine Family
     4. Hardware Geometry Fingerprint
+
+    Returns a dict: valid, reason, matched, total, failed, checks.
     """
     current_platform, current_browser = parse_device_traits(current_ua)
-    
+
+    checks: List[Dict[str, Any]] = [
+        {"factor": "token", "label": "Device token", "ok": True},
+    ]
+
     # Condition 2: Platform Match
-    if stored_device.get("platform") and stored_device["platform"] != "Unknown Device":
-        if stored_device["platform"] != current_platform:
-            return False, f"OS mismatch: expected {stored_device['platform']}, got {current_platform}"
-            
+    stored_platform = stored_device.get("platform")
+    platform_enforced = bool(stored_platform and stored_platform != "Unknown Device")
+    checks.append({
+        "factor": "platform", "label": "Operating system",
+        "ok": (not platform_enforced) or stored_platform == current_platform,
+        "expected": stored_platform, "got": current_platform,
+    })
+
     # Condition 3: Browser Match
-    if stored_device.get("browser") and stored_device["browser"] != "Unknown Browser":
-        if stored_device["browser"] != current_browser:
-            return False, f"Browser mismatch: expected {stored_device['browser']}, got {current_browser}"
-            
+    stored_browser = stored_device.get("browser")
+    browser_enforced = bool(stored_browser and stored_browser != "Unknown Browser")
+    checks.append({
+        "factor": "browser", "label": "Browser",
+        "ok": (not browser_enforced) or stored_browser == current_browser,
+        "expected": stored_browser, "got": current_browser,
+    })
+
     # Condition 4: Hardware Geometry Match
     stored_hw = stored_device.get("hardware_fingerprint")
-    if stored_hw and current_hw_fingerprint:
-        if stored_hw != current_hw_fingerprint:
-            return False, f"Hardware display signature mismatch"
-            
-    return True, "Signature verified (4/4 conditions met)"
+    hw_enforced = bool(stored_hw and current_hw_fingerprint)
+    checks.append({
+        "factor": "display", "label": "Screen",
+        "ok": (not hw_enforced) or stored_hw == current_hw_fingerprint,
+    })
+
+    failed = [c for c in checks if not c["ok"]]
+    matched = len(checks) - len(failed)
+
+    if not failed:
+        return {
+            "valid": True,
+            "reason": "Signature verified (4/4 conditions met)",
+            "matched": matched, "total": len(checks), "failed": [], "checks": checks,
+        }
+
+    def describe(c: Dict[str, Any]) -> str:
+        if c["factor"] == "display":
+            return "Screen changed (different resolution, scaling or colour depth)"
+        return f"{c['label']} changed (expected {c['expected']}, got {c['got']})"
+
+    return {
+        "valid": False,
+        "reason": "; ".join(describe(c) for c in failed),
+        "matched": matched, "total": len(checks),
+        "failed": [c["factor"] for c in failed], "checks": checks,
+    }
 
 def register_or_update_device(
     device_token: str, 

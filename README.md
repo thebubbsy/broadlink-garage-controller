@@ -51,6 +51,7 @@ To cater to different home setups, the project provides **two distinct, producti
 | **Home Hardware Required** | RM4 Pro only | RM4 Pro + Host (PC / Pi / Android) |
 | **PC Powered On 24/7?** | ❌ **No** (Completely serverless) | ✅ Yes (or low-power Android / Pi) |
 | **External Cloud Dependency** | Cloudflare + Alexa / Webhook | ❌ **Zero** (100% local LAN) |
+| **RF Code Learning** | BroadLink app (learn button → scene → Alexa Routine) | Built-in `learn_rf.py` CLI sweep & capture |
 | **4-Factor Device Verification** | ✅ Yes (D1 edge database) | ✅ Yes (SQLite database) |
 | **Admin Whitelist & Nicknames** | ✅ Yes | ✅ Yes |
 | **Weekly Top User Leaderboard** | ✅ Yes (Sunday 11:59 PM reset) | Optional |
@@ -138,7 +139,9 @@ If an unapproved device attempts access, or if any of the 4 conditions mismatch,
 - **Master Admin Drawer**: Whitelist trusted neighbors, assign custom nicknames (e.g., "Dad", "Sarah\'s Phone"), or revoke access in real time.
 - **Weekly Leaderboard**: Displays the top user of the week with access counts, resetting automatically every Sunday at 11:59 PM.
 - **Usage Statistics**: Visualizes peak trigger times throughout the day and all-time access counts.
-- **Automated RF Learning Tool**: Built-in CLI tool to sweep carrier frequencies and lock onto your physical remote\'s RF code packet.
+- **RF Remote Learning** — how the garage remote's signal is captured differs by architecture:
+  - **Local (`local-python/`)**: Built-in CLI tool (`learn_rf.py`) sweeps carrier frequencies, locks onto your physical remote's RF code packet and saves it to `garage_rf_code.txt`. The server then transmits it directly over the LAN. *Local version only.*
+  - **Cloud (`cloud-cloudflare-pages/`)**: No CLI learning. You learn the remote button inside the **BroadLink mobile app**, add that button to a **BroadLink Scene**, link BroadLink to **Alexa**, and create an Alexa Routine that runs the scene when the webhook fires. See the cloud README, Step 4.
 
 ---
 
