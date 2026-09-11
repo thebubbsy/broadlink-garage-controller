@@ -1,0 +1,35 @@
+# Virtual Environment
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+
+# Sensitive environment variables & secrets
+.env
+.env.local
+wrangler.toml
+
+# Captured RF data & local databases
+garage_rf_code.txt
+*.db
+*.sqlite
+*.sqlite3
+devices.db
+
+# Cloudflare & Node
+node_modules/
+.wrangler/
+dist/
+.pages/
+
+# Logs
+*.log
+garage_service.log
+
+# Operating System & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

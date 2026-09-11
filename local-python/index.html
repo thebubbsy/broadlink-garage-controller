@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Smart Garage</title>
+  
+  <!-- Mobile & PWA Optimization -->
+  <meta name="theme-color" content="#090d16">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Garage">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="manifest" href="/manifest.json">
+  
+  <style>
+    :root {
+      --bg: #090d16;
+      --card: #131b2e;
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-active: #1d2844;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --accent-glow: rgba(59, 130, 246, 0.45);
+      --danger: #f43f5e;
+      --success: #10b981;
+      --success-glow: rgba(16, 185, 129, 0.4);
+      --text: #f8fafc;
+      --muted: #64748b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      overscroll-behavior: none;
+      background: radial-gradient(circle at 50% 0%, #172138 0%, var(--bg) 75%);
+      color: var(--text);
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: max(16px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom)) 20px;
+    }
+
+    /* Top Nav Bar */
+    header {
+      width: 100%;
+      max-width: 360px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 4px;
+    }
+
+    .header-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+      background: rgba(59, 130, 246, 0.12);
+      color: #93c5fd;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      margin-bottom: 4px;
+      cursor: pointer;
+    }
+    .badge.whitelisted {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.35);
+    }
+    .badge-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent);
+    }
+    .badge.whitelisted .badge-dot {
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      color: #ffffff;
+    }
+
+    .admin-icon-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      color: var(--muted);
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .admin-icon-btn:active {
+      transform: scale(0.92);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    /* Main Portal Container */
+    .portal-container {
+      width: 100%;
+      max-width: 330px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      margin: auto 0;
+    }
+
+    /* Animated Garage Door Icon */
+    .door-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 20px;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .door-icon svg {
+      width: 32px;
+      height: 32px;
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: all 0.3s ease;
+    }
+    .door-icon.whitelisted svg {
+      stroke: var(--success);
+    }
+    .door-icon.transmitting {
+      border-color: var(--accent);
+      box-shadow: 0 0 28px var(--accent-glow);
+      animation: pulse-ring 1.1s infinite cubic-bezier(0.4, 0, 0.6, 1);
+    }
+    @keyframes pulse-ring {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+    }
+
+    /* PIN Display */
+    .pin-display {
+      display: flex;
+      gap: 16px;
+      padding: 4px 0;
+    }
+    .pin-dot {
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      border: 2px solid var(--muted);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      background: transparent;
+    }
+    .pin-dot.filled {
+      background: var(--accent);
+      border-color: var(--accent);
+      box-shadow: 0 0 14px var(--accent-glow);
+      transform: scale(1.2);
+    }
+    .pin-dot.error {
+      background: var(--danger);
+      border-color: var(--danger);
+      box-shadow: 0 0 14px rgba(244, 63, 94, 0.5);
+    }
+
+    /* Whitelist Banner */
+    .whitelist-verified-card {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      padding: 12px 18px;
+      border-radius: 16px;
+      width: 100%;
+      text-align: center;
+    }
+    .whitelist-verified-card.show {
+      display: flex;
+    }
+    .whitelist-verified-card .title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #34d399;
+    }
+    .whitelist-verified-card .subtitle {
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    /* Status Label */
+    .status-msg {
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: var(--muted);
+      text-align: center;
+      min-height: 20px;
+      transition: all 0.2s ease;
+    }
+    .status-msg.error { color: var(--danger); font-weight: 600; }
+    .status-msg.success { color: var(--success); font-weight: 600; }
+
+    /* Mobile Keypad */
+    .keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      width: 100%;
+      transition: all 0.3s ease;
+    }
+    .keypad.hidden {
+      display: none;
+    }
+    .key {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      color: #ffffff;
+      font-size: 1.6rem;
+      font-weight: 600;
+      height: 60px;
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+      transition: transform 0.1s ease, background 0.1s ease, border-color 0.1s ease;
+    }
+    .key:active {
+      transform: scale(0.92);
+      background: var(--card-active);
+      border-color: var(--accent);
+    }
+    .key.action {
+      font-size: 0.95rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    /* Action Trigger Button */
+    .action-btn {
+      width: 100%;
+      height: 64px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+      color: #ffffff;
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      border-radius: 20px;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 8px 24px var(--accent-glow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .action-btn.whitelisted-ready {
+      background: linear-gradient(135deg, #10b981, #059669);
+      box-shadow: 0 8px 28px var(--success-glow);
+    }
+    .action-btn:disabled {
+      background: #141c2e;
+      color: #334155;
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+    .action-btn:not(:disabled):active {
+      transform: scale(0.96);
+    }
+
+    /* Shake animation */
+    .shake {
+      animation: shake 0.38s ease-in-out;
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-8px); }
+      40%, 80% { transform: translateX(8px); }
+    }
+
+    /* --- ADMIN MODAL & DRAWER --- */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(4, 7, 13, 0.82);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-backdrop.show {
+      display: flex;
+    }
+
+    .admin-card {
+      background: #0f1629;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 24px;
+      width: 100%;
+      max-width: 440px;
+      max-height: 88dvh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+      overflow: hidden;
+    }
+    .admin-header {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .admin-header h2 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+    }
+    .close-btn {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 1.4rem;
+      cursor: pointer;
+      padding: 4px;
+    }
+
+    .admin-body {
+      padding: 16px 20px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* Device Item */
+    .device-row {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .device-row.whitelisted {
+      border-color: rgba(16, 185, 129, 0.4);
+      background: rgba(16, 185, 129, 0.05);
+    }
+    .device-main {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .device-title {
+      font-size: 0.96rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .device-meta {
+      font-size: 0.76rem;
+      color: var(--muted);
+      margin-top: 3px;
+      line-height: 1.35;
+    }
+    .tag {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 3px 8px;
+      border-radius: 8px;
+    }
+    .tag.whitelisted {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+    }
+    .tag.opened {
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+    }
+    .tag.pending {
+      background: rgba(100, 116, 139, 0.2);
+      color: #94a3b8;
+    }
+
+    .device-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 2px;
+    }
+    .btn-small {
+      flex: 1;
+      padding: 8px 10px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }
+    .btn-whitelist {
+      background: #10b981;
+      color: #fff;
+    }
+    .btn-revoke {
+      background: #334155;
+      color: #f87171;
+    }
+    .btn-rename {
+      background: #1e293b;
+      color: #93c5fd;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .btn-delete {
+      background: transparent;
+      color: #64748b;
+      padding: 8px;
+      flex: 0;
+    }
+
+    /* Admin PIN prompt inside modal */
+    .admin-auth-box {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 10px 0;
+    }
+    .admin-input {
+      width: 100%;
+      height: 50px;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      color: #fff;
+      font-size: 1.4rem;
+      text-align: center;
+      letter-spacing: 6px;
+      outline: none;
+    }
+    .admin-input:focus {
+      border-color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header Bar -->
+  <header>
+    <div style="width: 36px;"></div> <!-- Spacer for balance -->
+    <div class="header-center">
+      <div class="badge" id="device-badge" onclick="openAdminModal()">
+        <span class="badge-dot"></span>
+        <span id="badge-text">Garage Access</span>
+      </div>
+      <h1>Garage Door</h1>
+    </div>
+    <button class="admin-icon-btn" onclick="openAdminModal()" title="Admin Device Manager">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+    </button>
+  </header>
+
+  <!-- Center Portal Container -->
+  <div class="portal-container">
+    <div class="door-icon" id="door-icon">
+      <svg viewBox="0 0 24 24">
+        <path d="M3 21h18M4 21V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v15M9 4v17M15 4v17M4 10h16M4 15h16" />
+      </svg>
+    </div>
+
+    <!-- Whitelisted Device Card (Shown only if verified & whitelisted) -->
+    <div class="whitelist-verified-card" id="whitelist-card">
+      <div class="title" id="whitelist-device-name">✓ Whitelisted Device</div>
+      <div class="subtitle">PIN-less 1-Tap Access Enabled</div>
+    </div>
+
+    <!-- PIN dots (Shown when PIN required) -->
+    <div class="pin-display" id="pin-container">
+      <div class="pin-dot" id="dot-0"></div>
+      <div class="pin-dot" id="dot-1"></div>
+      <div class="pin-dot" id="dot-2"></div>
+      <div class="pin-dot" id="dot-3"></div>
+    </div>
+
+    <div class="status-msg" id="status">Connecting...</div>
+
+    <!-- Keypad (Hidden if device is whitelisted) -->
+    <div class="keypad" id="keypad">
+      <div class="key" onclick="pressKey('1')">1</div>
+      <div class="key" onclick="pressKey('2')">2</div>
+      <div class="key" onclick="pressKey('3')">3</div>
+      <div class="key" onclick="pressKey('4')">4</div>
+      <div class="key" onclick="pressKey('5')">5</div>
+      <div class="key" onclick="pressKey('6')">6</div>
+      <div class="key" onclick="pressKey('7')">7</div>
+      <div class="key" onclick="pressKey('8')">8</div>
+      <div class="key" onclick="pressKey('9')">9</div>
+      <div class="key action" onclick="clearPin()">CLEAR</div>
+      <div class="key" onclick="pressKey('0')">0</div>
+      <div class="key action" onclick="backspace()">⌫</div>
+    </div>
+
+    <button id="open-btn" class="action-btn" disabled onclick="sendTrigger()">
+      <span>OPEN / CLOSE</span>
+    </button>
+  </div>
+
+  <!-- ADMIN MODAL -->
+  <div class="modal-backdrop" id="admin-modal">
+    <div class="admin-card">
+      <div class="admin-header">
+        <h2 id="admin-modal-title">Admin Device Manager</h2>
+        <button class="close-btn" onclick="closeAdminModal()">&times;</button>
+      </div>
+
+      <!-- Auth Form (Step 1) -->
+      <div class="admin-body" id="admin-auth-view">
+        <div class="admin-auth-box">
+          <p style="font-size: 0.88rem; color: var(--muted); text-align: center;">Enter Admin PIN to manage whitelisted devices:</p>
+          <input type="password" id="admin-pin-input" class="admin-input" maxlength="8" placeholder="••••" />
+          <button class="action-btn" style="height: 50px; font-size: 1rem;" onclick="loginAdmin()">Unlock Admin</button>
+          <div id="admin-auth-err" style="color: var(--danger); font-size: 0.85rem; text-align: center;"></div>
+        </div>
+      </div>
+
+      <!-- Device List Form (Step 2) -->
+      <div class="admin-body" id="admin-devices-view" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+          <span style="font-size: 0.82rem; color: var(--muted);" id="device-count-label">0 Devices Registered</span>
+          <button class="btn-small btn-rename" style="flex:0; padding: 4px 10px;" onclick="loadDevices()">↻ Refresh</button>
+        </div>
+        <div id="device-list-container" style="display: flex; flex-direction: column; gap: 10px;">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentPin = "";
+    let isWhitelisted = false;
+    let deviceToken = "";
+    let cachedAdminPin = "";
+
+    const statusEl = document.getElementById("status");
+    const openBtn = document.getElementById("open-btn");
+    const doorIcon = document.getElementById("door-icon");
+    const pinContainer = document.getElementById("pin-container");
+    const keypad = document.getElementById("keypad");
+    const whitelistCard = document.getElementById("whitelist-card");
+    const deviceBadge = document.getElementById("device-badge");
+    const badgeText = document.getElementById("badge-text");
+    const whitelistDeviceName = document.getElementById("whitelist-device-name");
+
+    // Initialize Device Identification
+    function getOrCreateDeviceToken() {
+      let token = localStorage.getItem("garage_device_token");
+      if (!token) {
+        token = "dev_" + ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+          (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+        );
+        localStorage.setItem("garage_device_token", token);
+      }
+      return token;
+    }
+
+    deviceToken = getOrCreateDeviceToken();
+
+    function getHardwareFingerprint() {
+      const w = screen.width || 0;
+      const h = screen.height || 0;
+      const minDim = Math.min(w, h);
+      const maxDim = Math.max(w, h);
+      const ratio = window.devicePixelRatio || 1;
+      const touch = (navigator.maxTouchPoints || 0) > 0 ? 1 : 0;
+      const depth = screen.colorDepth || 24;
+      return `${minDim}x${maxDim}@${ratio}_touch${touch}_d${depth}`;
+    }
+
+    function haptic(ms = 20) {
+      if (window.navigator && window.navigator.vibrate) {
+        window.navigator.vibrate(ms);
+      }
+    }
+
+    // Register & Check Whitelist Status on Load
+    async function initDevice() {
+      try {
+        const res = await fetch("/api/device/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ device_token: deviceToken })
+        });
+
+        const data = await res.json();
+        isWhitelisted = data.is_whitelisted;
+
+        if (isWhitelisted) {
+          // Device is whitelisted: Disable PIN pad, show verified card, enable open button immediately!
+          keypad.classList.add("hidden");
+          pinContainer.style.display = "none";
+          whitelistCard.classList.add("show");
+          whitelistDeviceName.innerText = `✓ ${data.friendly_name || "Whitelisted Device"}`;
+          deviceBadge.classList.add("whitelisted");
+          badgeText.innerText = "Verified Device";
+          doorIcon.classList.add("whitelisted");
+          
+          openBtn.disabled = false;
+          openBtn.classList.add("whitelisted-ready");
+          statusEl.innerText = "Ready to Open (1-Tap)";
+          statusEl.className = "status-msg success";
+        } else {
+          // Standard PIN mode
+          keypad.classList.remove("hidden");
+          pinContainer.style.display = "flex";
+          whitelistCard.classList.remove("show");
+          deviceBadge.classList.remove("whitelisted");
+          badgeText.innerText = "Garage Access";
+          doorIcon.classList.remove("whitelisted");
+          openBtn.disabled = true;
+          openBtn.classList.remove("whitelisted-ready");
+          statusEl.innerText = "Enter 4-digit PIN";
+          statusEl.className = "status-msg";
+        }
+      } catch (err) {
+        statusEl.innerText = "Enter 4-digit PIN";
+      }
+    }
+
+    function updateDots() {
+      if (isWhitelisted) return;
+      for (let i = 0; i < 4; i++) {
+        const dot = document.getElementById(`dot-${i}`);
+        if (i < currentPin.length) {
+          dot.classList.add("filled");
+        } else {
+          dot.classList.remove("filled", "error");
+        }
+      }
+      openBtn.disabled = (currentPin.length !== 4);
+    }
+
+    function pressKey(num) {
+      if (isWhitelisted) return;
+      haptic(18);
+      if (currentPin.length < 4) {
+        currentPin += num;
+        updateDots();
+      }
+    }
+
+    function clearPin() {
+      if (isWhitelisted) return;
+      haptic(15);
+      currentPin = "";
+      updateDots();
+      statusEl.className = "status-msg";
+      statusEl.innerText = "Enter 4-digit PIN";
+      doorIcon.classList.remove("transmitting");
+    }
+
+    function backspace() {
+      if (isWhitelisted) return;
+      haptic(15);
+      if (currentPin.length > 0) {
+        currentPin = currentPin.slice(0, -1);
+        updateDots();
+      }
+    }
+
+    window.addEventListener("keydown", (e) => {
+      if (isWhitelisted && e.key === "Enter") {
+        sendTrigger();
+        return;
+      }
+      if (e.key >= "0" && e.key <= "9") {
+        pressKey(e.key);
+      } else if (e.key === "Backspace") {
+        backspace();
+      } else if (e.key === "Escape") {
+        clearPin();
+      } else if (e.key === "Enter" && currentPin.length === 4) {
+        sendTrigger();
+      }
+    });
+
+    async function sendTrigger() {
+      if (!isWhitelisted && currentPin.length !== 4) return;
+      
+      openBtn.disabled = true;
+      doorIcon.classList.add("transmitting");
+      statusEl.className = "status-msg";
+      statusEl.innerText = "Transmitting RF signal...";
+
+      const payload = { device_token: deviceToken };
+      if (!isWhitelisted) {
+        payload.pin = currentPin;
+      }
+
+      try {
+        const res = await fetch("/api/trigger", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        doorIcon.classList.remove("transmitting");
+
+        if (res.ok) {
+          statusEl.className = "status-msg success";
+          statusEl.innerText = "Door activated!";
+          haptic([40, 60, 40]);
+
+          if (!isWhitelisted) {
+            setTimeout(clearPin, 2500);
+          } else {
+            setTimeout(() => {
+              openBtn.disabled = false;
+              statusEl.innerText = "Ready to Open (1-Tap)";
+            }, 3000);
+          }
+        } else {
+          statusEl.className = "status-msg error";
+          statusEl.innerText = data.detail || "Access Denied";
+          
+          if (!isWhitelisted) {
+            for (let i = 0; i < 4; i++) {
+              document.getElementById(`dot-${i}`).classList.add("error");
+            }
+            pinContainer.classList.add("shake");
+            haptic(250);
+            setTimeout(() => {
+              pinContainer.classList.remove("shake");
+              clearPin();
+            }, 1200);
+          } else {
+            openBtn.disabled = false;
+          }
+        }
+      } catch (err) {
+        doorIcon.classList.remove("transmitting");
+        statusEl.className = "status-msg error";
+        statusEl.innerText = "Offline. Check server connection.";
+        haptic(180);
+        if (!isWhitelisted) setTimeout(clearPin, 2000);
+        else openBtn.disabled = false;
+      }
+    }
+
+    // --- ADMIN DASHBOARD SCRIPT ---
+    function openAdminModal() {
+      document.getElementById("admin-modal").classList.add("show");
+      const savedPin = sessionStorage.getItem("admin_pin");
+      if (savedPin) {
+        cachedAdminPin = savedPin;
+        showDevicesView();
+      } else {
+        document.getElementById("admin-auth-view").style.display = "block";
+        document.getElementById("admin-devices-view").style.display = "none";
+        setTimeout(() => document.getElementById("admin-pin-input").focus(), 200);
+      }
+    }
+
+    function closeAdminModal() {
+      document.getElementById("admin-modal").classList.remove("show");
+      // Re-check current device in case whitelist status was toggled for self
+      initDevice();
+    }
+
+    async function loginAdmin() {
+      const pin = document.getElementById("admin-pin-input").value;
+      const errEl = document.getElementById("admin-auth-err");
+      errEl.innerText = "";
+
+      try {
+        const res = await fetch("/api/admin/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ admin_pin: pin })
+        });
+        if (res.ok) {
+          cachedAdminPin = pin;
+          sessionStorage.setItem("admin_pin", pin);
+          showDevicesView();
+        } else {
+          errEl.innerText = "Invalid Admin PIN";
+          haptic(200);
+        }
+      } catch (e) {
+        errEl.innerText = "Server error verifying admin";
+      }
+    }
+
+    function showDevicesView() {
+      document.getElementById("admin-auth-view").style.display = "none";
+      document.getElementById("admin-devices-view").style.display = "flex";
+      loadDevices();
+    }
+
+    async function loadDevices() {
+      const container = document.getElementById("device-list-container");
+      container.innerHTML = "<div style='color:var(--muted); text-align:center;'>Loading devices...</div>";
+
+      try {
+        const res = await fetch(`/api/admin/devices?admin_pin=${encodeURIComponent(cachedAdminPin)}`);
+        const data = await res.json();
+        const devices = data.devices || [];
+
+        document.getElementById("device-count-label").innerText = `${devices.length} Device(s) Total`;
+
+        if (devices.length === 0) {
+          container.innerHTML = "<div style='color:var(--muted); text-align:center; padding:20px 0;'>No devices have visited yet.</div>";
+          return;
+        }
+
+        container.innerHTML = "";
+        devices.forEach(d => {
+          const isSelf = (d.device_token === deviceToken);
+          const row = document.createElement("div");
+          row.className = `device-row ${d.is_whitelisted ? 'whitelisted' : ''}`;
+
+          let statusTag = `<span class="tag pending">No PIN Yet</span>`;
+          if (d.is_whitelisted) {
+            statusTag = `<span class="tag whitelisted">★ Whitelisted (No PIN)</span>`;
+          } else if (d.has_opened_with_pin) {
+            statusTag = `<span class="tag opened">✓ Opened with PIN</span>`;
+          }
+
+          row.innerHTML = `
+            <div class="device-main">
+              <div>
+                <div class="device-title">
+                  <span>${escapeHtml(d.friendly_name || d.platform)}</span>
+                  ${isSelf ? '<span style="font-size:0.7rem; color:#60a5fa;">(This Device)</span>' : ''}
+                </div>
+                <div class="device-meta">
+                  IP: ${d.ip_address || 'Unknown'}<br>
+                  Platform: ${d.platform} (${d.browser})<br>
+                  Opened: <strong>${d.open_count} times</strong> · Last seen: ${d.last_seen}
+                </div>
+              </div>
+              <div>${statusTag}</div>
+            </div>
+            <div class="device-actions">
+              ${d.is_whitelisted 
+                ? `<button class="btn-small btn-revoke" onclick="toggleWhitelist('${d.device_token}', false)">Lock (Require PIN)</button>`
+                : `<button class="btn-small btn-whitelist" onclick="toggleWhitelist('${d.device_token}', true)">★ Allow Without PIN</button>`
+              }
+              <button class="btn-small btn-rename" onclick="renameDevice('${d.device_token}', '${escapeHtml(d.friendly_name || '')}')">Rename</button>
+              <button class="btn-small btn-delete" onclick="deleteDevice('${d.device_token}')" title="Delete">🗑️</button>
+            </div>
+          `;
+          container.appendChild(row);
+        });
+      } catch (err) {
+        container.innerHTML = "<div style='color:var(--danger); text-align:center;'>Failed to load devices.</div>";
+      }
+    }
+
+    async function toggleWhitelist(token, enable) {
+      haptic(25);
+      await fetch("/api/admin/whitelist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          admin_pin: cachedAdminPin,
+          device_token: token,
+          whitelisted: enable
+        })
+      });
+      loadDevices();
+    }
+
+    async function renameDevice(token, currentName) {
+      const newName = prompt("Enter a friendly nickname (e.g., 'Dave Downstairs'):", currentName);
+      if (newName !== null && newName.trim() !== "") {
+        await fetch("/api/admin/rename", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            admin_pin: cachedAdminPin,
+            device_token: token,
+            friendly_name: newName.trim()
+          })
+        });
+        loadDevices();
+      }
+    }
+
+    async function deleteDevice(token) {
+      if (confirm("Remove this device from the database?")) {
+        await fetch("/api/admin/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            admin_pin: cachedAdminPin,
+            device_token: token
+          })
+        });
+        loadDevices();
+      }
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    // Run on startup
+    initDevice();
+  </script>
+</body>
+</html>
+
+

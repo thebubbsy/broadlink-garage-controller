@@ -1,0 +1,6 @@
+# Paste your captured BroadLink RF hex code here (single line, no spaces).
+# This file will be read by server.py / garage_rf_service.py to transmit to the RM4 Pro.
+# Example format:
+# 26000000000000000000...
+<PASTE_LEARNED_RF_HEX_CODE_HERE>
+

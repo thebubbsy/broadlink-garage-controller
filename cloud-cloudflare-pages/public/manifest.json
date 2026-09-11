@@ -1,0 +1,16 @@
+{
+  "name": "Smart Garage Door",
+  "short_name": "Garage",
+  "description": "Secure garage door access controller",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
+  "icons": [
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

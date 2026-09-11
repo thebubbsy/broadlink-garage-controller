@@ -1,0 +1,20 @@
+name = "smart-garage-controller"
+compatibility_date = "2024-09-01"
+pages_build_output_dir = "public"
+
+[vars]
+# Default fallback user PIN for device authorization (can be overridden per device)
+GARAGE_PIN = "1234"
+
+# Master Admin PIN to access the Admin Console and whitelist devices
+GARAGE_ADMIN_PIN = "0000"
+
+# Webhook URL triggered when authorized user presses door button.
+# Can be Virtual Smart Home Alexa Routine trigger, Home Assistant webhook, or IFTTT.
+GARAGE_WEBHOOK_URL = "https://www.virtualsmarthome.xyz/url_routine_trigger/activate.php?trigger=YOUR_TRIGGER_ID&token=YOUR_TOKEN&response=json"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "garage-db"
+# Replace with your Cloudflare D1 database ID after running: npx wrangler d1 create garage-db
+database_id = "your-d1-database-uuid-here"
