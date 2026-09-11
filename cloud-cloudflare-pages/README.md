@@ -6,31 +6,117 @@ This setup allows you to control your garage door 24/7 with **zero local servers
 
 ---
 
-## 🏗️ Architecture Overview
+## 🏗️ Architecture & Dataflow Diagrams
 
-```text
-[Mobile PWA / Web Browser]
-           │
-           │ (HTTPS + 4-Factor Device Verification)
-           ▼
-[Cloudflare Pages Edge Network]
-           │
-      ┌────┴───────────────────────────┐
-      ▼                                ▼
-[Cloudflare D1 Database]    [Cloudflare Pages Functions (API)]
-(Devices, Whitelist, Stats)            │
-                                       │ (Authenticated HTTPS Webhook)
-                                       ▼
-                       [Virtual Smart Home / Alexa Routine / Home Assistant]
-                                       │
-                                       ▼
-                             [BroadLink Cloud API]
-                                       │
-                                       ▼
-                            [BroadLink RM4 Pro (LAN)]
-                                       │ (RF Signal: 315/433 MHz)
-                                       ▼
-                              [Physical Garage Door]
+### End-to-End System Topology
+
+```mermaid
+flowchart TD
+    subgraph ClientLayer["1. Client Tier (PWA)"]
+        Client["Mobile / Desktop Browser"]
+        PWA["Installed PWA (Local Storage Token)"]
+    end
+
+    subgraph EdgeLayer["2. Cloudflare Global Edge Network"]
+        Pages["Cloudflare Pages Static Assets"]
+        Worker["Pages Functions (/api/trigger)"]
+        D1[("Cloudflare D1 SQL Database")]
+        WeeklyWorker["Pages Functions (/api/weekly)"]
+    end
+
+    subgraph CloudBridge["3. Serverless Cloud Bridge"]
+        VSH["Virtual Smart Home (Webhook API)"]
+        Alexa["Amazon Alexa Routine Engine"]
+        BLCloud["BroadLink Cloud API"]
+    end
+
+    subgraph HomeLAN["4. Home Local Network (Zero Server Running)"]
+        RM4["BroadLink RM4 Pro Hub"]
+        Door["Physical Garage Door Motor"]
+    end
+
+    Client --> Pages
+    PWA -->|"1. POST /api/trigger (Token, Fingerprint)"| Worker
+    Worker -->|"2. Query device signature & whitelist"| D1
+    D1 -->|"3. Return whitelist status & device record"| Worker
+    Worker -->|"4. Record trigger event in events table"| D1
+    Worker -->|"5. HTTPS GET Webhook URL"| VSH
+    VSH -->|"6. Trigger virtual sensor routine"| Alexa
+    Alexa -->|"7. Fire BroadLink garage scene"| BLCloud
+    BLCloud -->|"8. Push command to device"| RM4
+    RM4 -->|"9. Emit RF carrier pulse (315/433 MHz)"| Door
+    Client -.->|"GET /api/weekly (AEST Leaderboard)"| WeeklyWorker
+    WeeklyWorker -.->|"Query top user since Sunday 11:59 PM"| D1
+```
+
+### Request Lifecycle & Asynchronous Execution Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User / Phone
+    participant Browser as Client PWA
+    participant CF as Cloudflare Pages (/api/trigger)
+    participant D1 as Cloudflare D1 Database
+    participant Webhook as Virtual Smart Home Webhook
+    participant Alexa as Amazon Alexa Service
+    participant BLCloud as BroadLink Cloud
+    participant RM4 as BroadLink RM4 Pro (Home LAN)
+    participant Garage as Garage Door Motor
+
+    User->>Browser: Taps Open Garage Door
+    Browser->>CF: POST /api/trigger (token, fingerprint, pin?)
+    
+    rect rgb(20, 30, 50)
+        note over CF,D1: 4-Factor Authentication Verification
+        CF->>D1: SELECT * FROM devices WHERE device_token = ?
+        D1-->>CF: Device Record (whitelist, platform, browser, display_hw)
+        alt Whitelisted & 4/4 Factors Match
+            CF->>CF: Authorize 1-Tap Access
+        else Signature Mismatch or Unwhitelisted
+            CF->>CF: Verify Submitted 4-Digit PIN
+        end
+    end
+
+    CF->>D1: INSERT INTO events (device_token, event_type, timestamp)
+    CF->>Webhook: HTTPS GET activate.php (trigger & token)
+    Webhook-->>CF: 200 OK (Virtual sensor triggered)
+    CF-->>Browser: 200 OK (Door triggered successfully)
+    Browser-->>User: Success Animation & Haptic Buzz
+
+    note over Webhook,Garage: Asynchronous Cloud-to-Hardware Execution
+    Webhook->>Alexa: Trigger Virtual Sensor Event
+    Alexa->>Alexa: Execute Garage Door Routine
+    Alexa->>BLCloud: Activate BroadLink Smart Device Scene
+    BLCloud->>RM4: Send Learned RF Command
+    RM4->>Garage: Transmit 315/433 MHz Radio Frequency Signal
+    Garage->>Garage: Motor Engages - Door Opens/Closes
+```
+
+### AEST Rolling Weekly Leaderboard Logic
+
+```mermaid
+flowchart LR
+    subgraph ClientReq["Client Request"]
+        Req["Client fetches /api/weekly"]
+    end
+
+    subgraph TimeEngine["AEST Calculation Engine"]
+        Now["Get UTC Timestamp"]
+        Convert["Convert to Australia/Sydney (AEST/AEDT)"]
+        FindSun["Find Preceding Sunday 23:59:59 AEST"]
+        ToUTC["Convert Boundary Back to UTC ISO String"]
+    end
+
+    subgraph D1Query["Cloudflare D1 Query"]
+        SQL["SELECT d.friendly_name, COUNT(e.id) as opens FROM events e JOIN devices d ON e.device_token = d.device_token WHERE e.timestamp >= ? GROUP BY e.device_token ORDER BY opens DESC LIMIT 1"]
+    end
+
+    subgraph Output["Response"]
+        Res["Return Top User Nickname & Open Count (Resets every Sunday at 11:59 PM AEST)"]
+    end
+
+    Req --> Now --> Convert --> FindSun --> ToUTC --> SQL --> Res
 ```
 
 ---

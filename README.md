@@ -28,8 +28,6 @@ To cater to different home setups, the project provides **two distinct, producti
 
 ---
 
----
-
 ## 📸 Screenshots & UI Tour
 
 <div align="center">
@@ -58,6 +56,66 @@ To cater to different home setups, the project provides **two distinct, producti
 | **Weekly Top User Leaderboard** | ✅ Yes (Sunday 11:59 PM reset) | Optional |
 | **Mobile PWA Support** | ✅ Yes | ✅ Yes |
 | **Cost** | $0.00 / month (Cloudflare Free Tier) | $0.00 (Self-hosted) |
+
+---
+
+## 🔄 End-to-End Process & Decision Workflow
+
+The diagram below illustrates the unified user journey, the strict **4-Factor Security Gate**, and the dispatch branching between the **Cloud** and **Local** architectures:
+
+```mermaid
+flowchart TD
+    Start(["User Opens Web App (PWA / Browser)"]) --> CheckToken{"Token in LocalStorage?"}
+    
+    CheckToken -- "No (New Device)" --> GenToken["Generate Crypto UUID Token"]
+    GenToken --> CollectTraits["Collect Fingerprint (OS, Browser, Screen Geometry)"]
+    CollectTraits --> RegisterReq["POST /api/device/register"]
+    RegisterReq --> DisplayLocked["Render Keypad (Locked State)"]
+    
+    CheckToken -- "Yes" --> CheckTrigger{"User Taps Action"}
+    DisplayLocked --> CheckTrigger
+
+    CheckTrigger -- "Enters 4-Digit PIN" --> SubmitPin["POST /api/trigger with PIN"]
+    CheckTrigger -- "Taps 1-Tap Open Button" --> Submit1Tap["POST /api/trigger with Token & Fingerprint"]
+
+    subgraph SecurityGate["🛡️ 4-Factor Cryptographic Gate"]
+        Submit1Tap --> Cond1{"1. Token Exists & Whitelisted in DB?"}
+        Cond1 -- "No" --> FallbackPin["Require Manual 4-Digit PIN"]
+        Cond1 -- "Yes" --> Cond2{"2. Platform Matches? (iOS / Android / PC)"}
+        Cond2 -- "No" --> DelayBlock["0.6s Anti-Probing Delay & Require PIN"]
+        Cond2 -- "Yes" --> Cond3{"3. Browser Matches? (Safari / Chrome)"}
+        Cond3 -- "No" --> DelayBlock
+        Cond3 -- "Yes" --> Cond4{"4. Display Geometry & Color Depth Matches?"}
+        Cond4 -- "No" --> DelayBlock
+        Cond4 -- "Yes (4/4 Verified)" --> AuthSuccess["Authorized: Whitelisted 1-Tap Access"]
+        
+        SubmitPin --> VerifyPin{"PIN Matches System Master PIN?"}
+        VerifyPin -- "No" --> RejectPin["0.8s Delay & 401 Unauthorized"]
+        VerifyPin -- "Yes" --> BindDevice["Bind Hardware Signature in DB & Authorize"]
+    end
+
+    AuthSuccess --> RouteBranch{"Select Architecture Deployment"}
+    BindDevice --> RouteBranch
+
+    subgraph CloudRoute["☁️ Cloud Architecture (Cloudflare Pages + D1)"]
+        RouteBranch -- "Cloud Setup" --> D1Log["Log Access Event in Cloudflare D1"]
+        D1Log --> Webhook["HTTPS GET Virtual Smart Home Webhook"]
+        Webhook --> Alexa["Alexa Routine Engine Triggered"]
+        Alexa --> BLCloud["BroadLink Cloud API"]
+        BLCloud --> RM4Cloud["BroadLink RM4 Pro (Home Wi-Fi)"]
+    end
+
+    subgraph LocalRoute["🏠 Local Architecture (FastAPI + LAN)"]
+        RouteBranch -- "Local Setup" --> SQLiteLog["Log Access Event in SQLite (devices.db)"]
+        SQLiteLog --> UDPDriver["FastAPI broadlink Python Driver"]
+        UDPDriver --> UDPSocket["Direct UDP Socket over 2.4GHz LAN (Port 80)"]
+        UDPSocket --> RM4Local["BroadLink RM4 Pro (Home Wi-Fi)"]
+    end
+
+    RM4Cloud --> EmitRF["Emit 315/433 MHz RF Burst"]
+    RM4Local --> EmitRF
+    EmitRF --> DoorMotor["Physical Garage Door Motor Operates! 🚪⚡"]
+```
 
 ---
 

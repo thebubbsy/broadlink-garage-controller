@@ -8,25 +8,73 @@ Can run on **Windows**, **Linux**, a **Raspberry Pi**, or even an **old Android 
 
 ---
 
-## 🏗️ Architecture Overview
+## 🏗️ Architecture & Process Diagrams
 
-```text
-[Mobile PWA / Browser]
-           │
-           │ (LAN / Reverse Proxy / Cloudflare Tunnel)
-           ▼
-[FastAPI Python Server] (Port 8000)
-    ├── SQLite Database (devices.db - 4-factor signatures & whitelist)
-    ├── Rate Limiting & Admin Console
-    └── BroadLink RM4 Pro Python Driver (broadlink)
-           │
-           │ (Direct UDP socket on local 2.4GHz Wi-Fi)
-           ▼
-[BroadLink RM4 Pro Hub]
-           │
-           │ (RF Signal: 315/433 MHz)
-           ▼
-[Physical Garage Door Motor]
+### Local Network Topology & Direct Socket Architecture
+
+```mermaid
+flowchart TD
+    subgraph ClientTier["1. Client Tier"]
+        Browser["Mobile / Desktop Browser"]
+        PWA["Installed PWA (Local Storage Token)"]
+    end
+
+    subgraph HostTier["2. Local Host (Windows / Linux / Android Termux)"]
+        Server["FastAPI Web Server (Port 8000)"]
+        Limiter["SlowAPI Rate Limiter (10 req/min)"]
+        GateEngine["4-Factor Signature Gate (database.py)"]
+        SQLite[("SQLite Database (devices.db)")]
+        RFCodeFile[("Learned RF Code (garage_rf_code.txt)")]
+        BLDriver["python-broadlink Driver"]
+    end
+
+    subgraph HwTier["3. Smart Hardware (Local 2.4GHz Wi-Fi)"]
+        RM4["BroadLink RM4 Pro (IP & MAC)"]
+        Door["Physical Garage Door Motor"]
+    end
+
+    Browser -->|"HTTP / WebSocket"| Server
+    PWA -->|"POST /api/trigger"| Server
+    Server --> Limiter
+    Limiter --> GateEngine
+    GateEngine <-->|"Verify Token, OS, Browser, Display"| SQLite
+    GateEngine -->|"On Auth Verified"| BLDriver
+    BLDriver -->|"Read Hex Payload"| RFCodeFile
+    BLDriver -->|"Direct UDP Socket (Port 80)"| RM4
+    RM4 -->|"Radio Frequency Burst (315/433 MHz)"| Door
+```
+
+### RF Frequency Sweep & Remote Learning State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> NetworkDiscovery: python discover.py
+    NetworkDiscovery --> DeviceFound: Broadcast UDP on 2.4GHz Wi-Fi
+    DeviceFound --> AuthDevice: broadlink.hello() & auth()
+    AuthDevice --> SaveEnv: Write IP & MAC to .env
+
+    SaveEnv --> RFSweep: python learn_rf.py (Step 1)
+    state RFSweep {
+        [*] --> SweepCommand: dev.sweep_frequency()
+        SweepCommand --> UserHoldButton: Press & hold physical remote button
+        UserHoldButton --> FrequencyScan: Check carrier every 1s (max 30s)
+        FrequencyScan --> FrequencyScan: In progress...
+        FrequencyScan --> CarrierLocked: Carrier frequency detected!
+    }
+
+    CarrierLocked --> PacketCapture: Step 2 (Code Capture)
+    state PacketCapture {
+        [*] --> FindPacket: dev.find_rf_packet(frequency)
+        FindPacket --> UserClickButton: Click remote button once per second
+        UserClickButton --> PollData: dev.check_data()
+        PollData --> PollData: ReadError / Buffer empty (poll)
+        PollData --> HexCaptured: Complete RF packet received!
+    }
+
+    HexCaptured --> SaveHexFile: Write hex string to garage_rf_code.txt
+    SaveHexFile --> Verification: python test_trigger.py
+    Verification --> DoorOperates: dev.send_data()
+    DoorOperates --> [*]: Ready for 24/7 server.py execution!
 ```
 
 ---
