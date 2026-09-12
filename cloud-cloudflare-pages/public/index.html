@@ -1426,7 +1426,8 @@
         if (shortcutFileAvailable === null) {
           applyLink(iCloudLink);
           fetch(SHORTCUT_FILE_URL, { method: "HEAD", cache: "no-store" })
-            .then(r => { shortcutFileAvailable = r.ok; })
+            // Must be a real .shortcut, not an HTML fallback page served with 200
+            .then(r => { shortcutFileAvailable = r.ok && /apple-shortcut|octet-stream/i.test(r.headers.get("content-type") || ""); })
             .catch(() => { shortcutFileAvailable = false; })
             .finally(() => applyLink(shortcutFileAvailable ? SHORTCUT_FILE_URL : iCloudLink));
         } else {
