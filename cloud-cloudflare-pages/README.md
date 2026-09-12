@@ -245,16 +245,19 @@ Whitelisted (1-Tap) devices can enable Siri from the app: tap **🎙 Set up "Hey
 - The link only works while the device has 1-Tap access. Revoking 1-Tap in the admin panel (or the user tapping **Disable Siri**) kills it immediately; **Regenerate link** rotates it.
 - Android users can use the same link with the free *HTTP Shortcuts* app / a Google Assistant routine.
 
-### Optional: one-tap "Get Shortcut" button
+### Optional: ready-made "Download Shortcut" button
 
-Build the Shortcut once on an iPhone, share it via iCloud, and the app shows a **Get Shortcut** button so users only have to paste their link:
+Export the Shortcut once and host the file; the Siri modal detects it and shows **⬇️ Download Shortcut** above the manual steps. Users import it, paste their own private link into the *Get Contents of URL* action, and say *"Hey Siri, open garage door."*
 
 1. Shortcuts → **+** → name it **Open garage door**.
-2. Add a **Text** action containing the placeholder `PASTE-LINK-HERE`.
-3. Add **Get Contents of URL** and set its URL to the *Text* variable.
-4. Add **Show Result** with the *Contents of URL* variable.
-5. Tap **ⓘ → Share → Copy iCloud Link**. Use Shortcuts' **Import Questions** so the Text field is asked for on import ("Paste your private Siri link from the garage app").
-6. Set the environment variable `SIRI_SHORTCUT_URL` to that iCloud link (Cloudflare dashboard → Pages → your project → Settings → Environment variables, or `[vars]` in `wrangler.toml`). The Siri modal now shows **Get Shortcut** above the manual steps.
+2. Add **Get Contents of URL** with the placeholder URL `https://garage.onyachamp.com/api/siri/trigger?key=PASTE-YOUR-LINK-HERE`.
+3. Add **Show Result** (or a *Show Alert* saying "Garage door has been opened").
+4. Tap **ⓘ → Share → Save to Files** and rename it `Open_garage_door.shortcut`.
+5. Put it in `public/shortcuts/` and deploy. It is served at `/shortcuts/Open_garage_door.shortcut`.
+
+> ⚠️ The `.shortcut` file is Apple-signed and embeds whatever URL was in it at export time — it cannot be edited afterwards. **Never export it with a real Siri link inside**; anyone who downloads it could open the door. If that ever happens, tap **Regenerate link** in the app.
+
+Alternatively set `SIRI_SHORTCUT_URL` to an iCloud-shared Shortcut link; it's used when no file is hosted.
 
 > Security note: the Siri link is a plain bearer secret — it deliberately skips the browser-signature checks because Shortcuts isn't a browser. It's only issued to already-whitelisted devices and is revocable, so it's no weaker than the device token, but treat it like a key: don't share it, and don't open it in a browser (it triggers the door).
 

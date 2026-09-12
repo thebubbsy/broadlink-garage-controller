@@ -160,6 +160,23 @@ async def favicon():
         return FileResponse(icon_path, media_type="image/x-icon")
     return FileResponse(BASE_DIR / "apple-touch-icon.png", media_type="image/png")
 
+SHORTCUTS_DIR = BASE_DIR / "shortcuts"
+
+@app.get("/shortcuts/{name}", include_in_schema=False)
+async def shortcut_file(name: str):
+    """Serves the ready-made Apple Shortcut (if present) as a download for the Siri setup modal."""
+    if not name.endswith(".shortcut") or "/" in name or "\\" in name or ".." in name:
+        raise HTTPException(status_code=404)
+    path = SHORTCUTS_DIR / name
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Shortcut file not installed")
+    return FileResponse(
+        path,
+        media_type="application/x-apple-shortcut",
+        filename="Open garage door.shortcut",
+        headers={"Cache-Control": "no-cache"},
+    )
+
 @app.get("/manifest.json", include_in_schema=False)
 async def manifest():
     return FileResponse(BASE_DIR / "manifest.json", media_type="application/json")

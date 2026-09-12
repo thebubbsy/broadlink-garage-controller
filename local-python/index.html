@@ -781,9 +781,13 @@
         <div class="siri-warn">⚠️ Keep this private — anyone with the link can open the door. Don't open it in a browser (that triggers the door).</div>
 
         <div id="siri-shortcut-wrap" style="display:none">
-          <div class="siri-label">Fastest: get the ready-made Shortcut</div>
-          <a class="btn-get-shortcut" id="siri-shortcut-link" href="#" target="_blank" rel="noopener">Get Shortcut</a>
-          <div class="siri-note" style="margin-top:6px">When the Shortcut asks for your link, paste the one above. That's it.</div>
+          <div class="siri-label">Fastest: download the ready-made Shortcut</div>
+          <a class="btn-get-shortcut" id="siri-shortcut-link" href="#" rel="noopener">⬇️ Download Shortcut</a>
+          <ol class="siri-steps" style="margin-top:8px">
+            <li>Open the download → it imports into the <b>Shortcuts</b> app. Tap <b>Add Shortcut</b>.</li>
+            <li>Open it in the editor, tap the URL inside <b>Get Contents of URL</b> and replace it with <b>your private link</b> (copied above).</li>
+            <li>Done — say <b>"Hey Siri, open garage door"</b>.</li>
+          </ol>
         </div>
 
         <div class="siri-label" id="siri-manual-label">Build it yourself (2 minutes)</div>
@@ -932,6 +936,9 @@
     // "Hey Siri" integration state (whitelisted devices only)
     let siriEnabled = false;
     let siriShortcutUrl = "";
+    // Ready-made .shortcut file served from /shortcuts/ (null = not checked yet)
+    const SHORTCUT_FILE_URL = "/shortcuts/Open_garage_door.shortcut";
+    let shortcutFileAvailable = null;
     const siriBtn = document.getElementById("btn-siri-setup");
     // Auto-generated device name (e.g. "iPhone (iOS) (Safari)") — not a real nickname
     let defaultDeviceName = "";
@@ -1172,14 +1179,28 @@
       document.getElementById("siri-state-on").style.display = on ? "flex" : "none";
       if (on && data) {
         document.getElementById("siri-url").value = data.trigger_url || "";
-        const link = data.siri_shortcut_url || siriShortcutUrl;
+        // Prefer the hosted .shortcut file (detected once via HEAD); fall back to an
+        // iCloud link from SIRI_SHORTCUT_URL; otherwise only the manual steps show.
         const wrap = document.getElementById("siri-shortcut-wrap");
-        if (link) {
-          document.getElementById("siri-shortcut-link").href = link;
-          wrap.style.display = "block";
-          document.getElementById("siri-manual-label").innerText = "Or build it yourself (2 minutes)";
+        const linkEl = document.getElementById("siri-shortcut-link");
+        const applyLink = (href) => {
+          if (href) {
+            linkEl.href = href;
+            wrap.style.display = "block";
+            document.getElementById("siri-manual-label").innerText = "Or build it yourself (2 minutes)";
+          } else {
+            wrap.style.display = "none";
+          }
+        };
+        const iCloudLink = data.siri_shortcut_url || siriShortcutUrl;
+        if (shortcutFileAvailable === null) {
+          applyLink(iCloudLink);
+          fetch(SHORTCUT_FILE_URL, { method: "HEAD", cache: "no-store" })
+            .then(r => { shortcutFileAvailable = r.ok; })
+            .catch(() => { shortcutFileAvailable = false; })
+            .finally(() => applyLink(shortcutFileAvailable ? SHORTCUT_FILE_URL : iCloudLink));
         } else {
-          wrap.style.display = "none";
+          applyLink(shortcutFileAvailable ? SHORTCUT_FILE_URL : iCloudLink);
         }
       }
     }

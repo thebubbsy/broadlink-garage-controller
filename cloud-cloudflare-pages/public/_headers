@@ -1,0 +1,5 @@
+# Serve the ready-made Apple Shortcut as a download so iOS hands it to the Shortcuts app
+/shortcuts/*
+  Content-Type: application/x-apple-shortcut
+  Content-Disposition: attachment; filename="Open garage door.shortcut"
+  Cache-Control: no-cache
