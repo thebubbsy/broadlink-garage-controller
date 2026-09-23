@@ -140,7 +140,7 @@ If an unapproved device attempts access, or if any of the 4 conditions mismatch,
 - **PWA Mobile App**: Install to your iOS or Android home screen with a single tap. Features dark modern UI, responsive haptic feedback, and audio cues.
 - **Master Admin Drawer**: Whitelist trusted neighbors, assign custom nicknames (e.g., "Dad", "Sarah\'s Phone"), or revoke access in real time.
 - **Weekly Leaderboard**: Displays the top user of the week with access counts, resetting automatically every Sunday at 11:59 PM.
-- **Usage Statistics**: Visualizes peak trigger times throughout the day and all-time access counts.
+- **Usage Statistics** (private): Visualizes peak trigger times throughout the day and all-time access counts. Because this history reveals when the household comes and goes, the stats drawer and weekly leaderboard are visible **only to 1-Tap verified devices and administrators** — everyone else gets no button and a 403 from the API.
 - **"Hey Siri, open garage door"**: Whitelisted devices can enable a private Siri link and a 2-action Apple Shortcut — works from the lock screen, CarPlay and Apple Watch. Siri opens are logged and counted like any other; revoking 1-Tap revokes the link.
 - **RF Remote Learning** — how the garage remote's signal is captured differs by architecture:
   - **Local (`local-python/`)**: Built-in CLI tool (`learn_rf.py`) sweeps carrier frequencies, locks onto your physical remote's RF code packet and saves it to `garage_rf_code.txt`. The server then transmits it directly over the LAN. *Local version only.*

@@ -123,3 +123,44 @@ export function siriTriggerUrl(request, key) {
   const origin = new URL(request.url).origin;
   return `${origin}/api/siri/trigger?key=${key}`;
 }
+
+// ── Viewer authorization for the stats / leaderboard endpoints ──
+// This app is on public infrastructure, and usage history reveals when the
+// household comes and goes. Only verified (1-tap) devices and administrators
+// may read it; everyone else gets 403 with no data.
+
+export async function readViewerCredentials(request) {
+  // Credentials travel in a POST body so device tokens and admin PINs never
+  // land in a URL, an edge log or browser history.
+  if (request.method !== "POST") return {};
+  try {
+    const body = await request.json();
+    return { deviceToken: body.device_token, adminPin: body.admin_pin };
+  } catch {
+    return {};
+  }
+}
+
+export async function authorizeViewer(env, credentials) {
+  const { deviceToken, adminPin } = credentials || {};
+
+  const configuredAdminPin = env.GARAGE_ADMIN_PIN || "0000";
+  if (adminPin && adminPin === configuredAdminPin) {
+    return { allowed: true, isAdmin: true };
+  }
+
+  if (!env.DB || !deviceToken || typeof deviceToken !== "string") {
+    return { allowed: false, isAdmin: false };
+  }
+
+  const device = await env.DB.prepare(
+    "SELECT is_whitelisted, is_admin, is_blocked FROM devices WHERE device_token = ?"
+  ).bind(deviceToken).first();
+
+  if (!device || device.is_blocked) return { allowed: false, isAdmin: false };
+
+  return {
+    allowed: Boolean(device.is_whitelisted || device.is_admin),
+    isAdmin: Boolean(device.is_admin)
+  };
+}

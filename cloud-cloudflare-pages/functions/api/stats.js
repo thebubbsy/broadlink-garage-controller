@@ -1,7 +1,19 @@
-// GET /api/stats
-// Returns fun usage statistics from the events and devices tables in AEST (UTC+10).
-export async function onRequestGet({ env }) {
+// POST /api/stats  { device_token, admin_pin? }
+// Returns usage statistics from the events and devices tables in AEST (UTC+10).
+// Restricted: this data shows when the household comes and goes, so only
+// verified (1-tap) devices and administrators may read it.
+import { authorizeViewer, readViewerCredentials } from "./_db.js";
+
+// A plain browser visit must never return data.
+export async function onRequestGet() {
+  return json({ error: "Usage history is only visible to verified devices and the admin." }, 403);
+}
+
+export async function onRequestPost({ request, env }) {
   if (!env.DB) return json({ error: "Database not configured" }, 503);
+
+  const auth = await authorizeViewer(env, await readViewerCredentials(request));
+  if (!auth.allowed) return json({ error: "Usage history is only visible to verified devices and the admin." }, 403);
 
   try {
     const [totals, hourly, recent, topDevice] = await Promise.all([

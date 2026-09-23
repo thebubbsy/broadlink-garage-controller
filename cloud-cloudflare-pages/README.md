@@ -237,6 +237,20 @@ To reach Alexa from a Cloudflare Pages function without running local servers, u
 
 ---
 
+## 🔒 Private Usage History
+
+The app is hosted on public infrastructure, and the stats drawer and weekly leaderboard show when people come and go. Both are therefore restricted:
+
+- `POST /api/stats` and `POST /api/weekly` answer only **1-Tap whitelisted devices** (by `device_token`) and **administrators** (a device flagged `is_admin`, or the correct `admin_pin`). Everything else gets `403` and no data.
+- `GET` on either endpoint always returns `403`, so pasting the URL into a browser reveals nothing.
+- Credentials travel in the POST body, never in the query string, so device tokens and admin PINs stay out of URLs, edge logs and browser history.
+- Blocked devices are refused even if still whitelisted.
+- The front-end hides the Stats handle and the weekly banner unless the device qualifies — but the server is what enforces it.
+
+Run `npm test` in `cloud-cloudflare-pages/` to verify the rules (14 cases, no account or network needed).
+
+---
+
 ## 🎙 "Hey Siri, open garage door" (Apple Shortcuts)
 
 Whitelisted (1-Tap) devices can enable Siri from the app: tap **🎙 Set up "Hey Siri"** on the verified card. The app issues a private per-device link (`/api/siri/trigger?key=…`, 256-bit key) and shows a 5-step recipe for a 2-action Apple Shortcut (**Get Contents of URL** → **Show Result**). Name it *Open garage door* and Siri runs it from the lock screen, CarPlay or Apple Watch.

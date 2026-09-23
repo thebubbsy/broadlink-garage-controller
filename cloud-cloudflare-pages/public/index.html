@@ -677,11 +677,11 @@
 
     /* ── Stats Drawer ─────────────────────────────────── */
     .stats-handle {
+      display: none;            /* shown only for verified devices / admins */
       position: fixed;
       bottom: max(20px, env(safe-area-inset-bottom));
       left: 50%;
       transform: translateX(-50%);
-      display: flex;
       flex-direction: column;
       align-items: center;
       gap: 4px;
@@ -690,6 +690,7 @@
       padding: 8px 20px;
       -webkit-tap-highlight-color: transparent;
     }
+    .stats-handle.show { display: flex; }
     .stats-handle-bar {
       width: 36px; height: 4px;
       border-radius: 4px;
@@ -1220,6 +1221,7 @@
         siriEnabled = Boolean(data.siri_enabled);
         siriShortcutUrl = data.siri_shortcut_url || "";
         renderSiriButton();
+        renderStatsAccess();
         renderRequestButton();
         renderAdminCta(data.pending_requests || 0);
         if (data.friendly_name) {
@@ -1669,6 +1671,7 @@
           isAdmin = true;
           const info = await res.json().catch(() => ({}));
           renderAdminCta(info.pending_requests || 0);
+          renderStatsAccess();
           showDevicesView();
         } else {
           errEl.innerText = "Invalid Admin PIN";
@@ -1832,15 +1835,52 @@
       document.getElementById("stats-backdrop").classList.remove("open");
     }
 
+    // Usage history reveals when the household comes and goes, so the stats
+    // drawer and weekly leaderboard are restricted to verified (1-tap) devices
+    // and administrators. The server enforces this; the UI just hides them.
+    function canViewStats() {
+      return Boolean(isWhitelisted || isAdmin || cachedAdminPin);
+    }
+
+    function viewerCredentials() {
+      const creds = { device_token: deviceToken };
+      if (cachedAdminPin) creds.admin_pin = cachedAdminPin;
+      return creds;
+    }
+
+    function renderStatsAccess() {
+      const handle = document.getElementById("btn-open-stats");
+      if (canViewStats()) {
+        if (handle) handle.classList.add("show");
+        fetchWeekly();
+      } else {
+        if (handle) handle.classList.remove("show");
+        closeStatsDrawer();
+        statsLoaded = false;
+        const weekly = document.getElementById("weekly-top");
+        if (weekly) weekly.style.display = "none";
+      }
+    }
+
     async function fetchStats() {
+      const recent = document.getElementById("recent-list");
+      if (!canViewStats()) {
+        recent.innerHTML =
+          "<div style='color:var(--muted);text-align:center;'>Stats are only visible to verified devices.</div>";
+        return;
+      }
       try {
-        const res = await fetch("/api/stats");
+        const res = await fetch("/api/stats", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(viewerCredentials())
+        });
         if (!res.ok) throw new Error("HTTP " + res.status);
         const s = await res.json();
         statsLoaded = true;
         renderStats(s);
       } catch (err) {
-        document.getElementById("recent-list").innerHTML =
+        recent.innerHTML =
           "<div style='color:var(--danger);text-align:center;'>Could not load stats.</div>";
       }
     }
@@ -1939,8 +1979,13 @@
 
     // ── Weekly Top User ─────────────────────────────────
     async function fetchWeekly() {
+      if (!canViewStats()) return;
       try {
-        const res = await fetch("/api/weekly");
+        const res = await fetch("/api/weekly", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(viewerCredentials())
+        });
         if (!res.ok) return;
         const d = await res.json();
         if (d.top_name && d.top_count > 0) {
@@ -2055,9 +2100,8 @@
     if (btnSendReq) btnSendReq.addEventListener("click", sendOneTapRequest);
     if (adminCta) adminCta.addEventListener("click", openAdminModal);
 
-    // Run on startup
+    // Run on startup — initDevice() decides whether stats are visible
     initDevice();
-    fetchWeekly();
   })();
   </script>
 </body>
