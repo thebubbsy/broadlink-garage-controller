@@ -1,5 +1,8 @@
 # Cloud Architecture: Cloudflare Pages + D1 + BroadLink Cloud / Alexa
 
+[← Back to the main README](../README.md) · [Repository on GitHub](https://github.com/thebubbsy/broadlink-garage-controller) · [Local architecture](../local-python/README.md)
+
+
 A 100% serverless, zero-maintenance smart garage door controller hosted on **Cloudflare Pages** with an edge **Cloudflare D1 SQL database**.
 
 This setup allows you to control your garage door 24/7 with **zero local servers or home PCs turned on**.
@@ -237,11 +240,43 @@ To reach Alexa from a Cloudflare Pages function without running local servers, u
 
 ---
 
-## 🔢 PIN Length
+## 🔢 Changing the PIN
 
-`GARAGE_PIN` and `GARAGE_ADMIN_PIN` can be any length from 1 to 32 digits — just set a longer value and redeploy. The keypad reads the length from `/api/device/register` (`pin_length`) and renders one dot per digit, so a 6-digit PIN shows 6 dots and the prompt reads "Enter 6-digit PIN". Past 6 digits the dots tighten up so they still fit on a phone. The PIN itself is never sent to the browser, only its length.
+```bash
+cd cloud-cloudflare-pages
+npm run pin
+```
 
-Longer is better here: the cloud trigger endpoint still has no brute-force rate limit, so PIN length is currently the main thing standing between a script and the door.
+That's the whole thing. It asks which PIN you mean, asks for the new value twice (never echoing it), stores it as an **encrypted Cloudflare secret**, and redeploys so it takes effect — Pages only picks up config changes on a new deployment, which is the step that's easy to forget when doing it by hand.
+
+Skip the prompts if you prefer:
+
+```bash
+npm run pin -- user 483920      # the PIN that opens the door
+npm run pin -- admin 91735      # the PIN for the admin console
+```
+
+Notes:
+
+- **PINs can be 1–32 digits.** The keypad reads the length from `/api/device/register` and renders one dot per digit, so a 6-digit PIN shows 6 dots and the prompt reads "Enter 6-digit PIN". The PIN itself is never sent to the browser, only its length.
+- The first run **converts** that PIN from a plain-text variable into an encrypted secret, so it stops appearing in the project config. Nothing else in your configuration is touched — the webhook URL and the D1 binding stay exactly as they are.
+- Whitelisted (1-Tap) devices don't use the PIN, so changing it only affects people typing it in.
+- Forked the repo? The project name comes from `CF_PAGES_PROJECT`, or change `DEFAULT_PROJECT` at the top of `scripts/change-pin.mjs`.
+
+Longer is better here: the trigger endpoint still has no brute-force rate limit, so PIN length is currently the main thing between a script and the door. A 4-digit PIN is 10,000 guesses; 8 digits is 100 million.
+
+<details>
+<summary>Doing it by hand in the dashboard instead</summary>
+
+1. **Workers & Pages → garage-onyachamp → Settings → Variables and Secrets → Production**
+2. Edit `GARAGE_PIN` or `GARAGE_ADMIN_PIN` and save.
+3. **Redeploy** — variable changes only apply to new deployments:
+   ```bash
+   cd cloud-cloudflare-pages && npm run deploy
+   ```
+   Watch for `✨ Uploading Functions bundle` in the output. If you don't see that line the API won't be deployed and the whole app will break, so don't walk away from it.
+
+</details>
 
 ---
 

@@ -1,5 +1,8 @@
 # BroadLink RM4 Pro Smart Garage Door Controller
 
+**Repository:** [github.com/thebubbsy/broadlink-garage-controller](https://github.com/thebubbsy/broadlink-garage-controller) · [Cloud setup](cloud-cloudflare-pages/README.md) · [Local setup](local-python/README.md) · [Change the PIN](#-changing-the-pin)
+
+
 An open-source, mobile-friendly smart garage door controller designed for the **BroadLink RM4 Pro**. 
 
 Provides secure, convenient 1-tap door access for family and trusted neighbors without requiring dedicated app installations or accounts, backed by a **4-factor cryptographic device verification gate** and an **interactive admin console**.
@@ -146,6 +149,30 @@ If an unapproved device attempts access, or if any of the 4 conditions mismatch,
 - **RF Remote Learning** — how the garage remote's signal is captured differs by architecture:
   - **Local (`local-python/`)**: Built-in CLI tool (`learn_rf.py`) sweeps carrier frequencies, locks onto your physical remote's RF code packet and saves it to `garage_rf_code.txt`. The server then transmits it directly over the LAN. *Local version only.*
   - **Cloud (`cloud-cloudflare-pages/`)**: No CLI learning. You learn the remote button inside the **BroadLink mobile app**, add that button to a **BroadLink Scene**, link BroadLink to **Alexa**, and create an Alexa Routine that runs the scene when the webhook fires. See the cloud README, Step 4.
+
+---
+
+## 🔢 Changing the PIN
+
+One command, either architecture. PINs can be **1–32 digits** — the keypad reads the length from the server and draws one dot per digit.
+
+**Cloud** (`cloud-cloudflare-pages/`) — sets an encrypted Cloudflare secret and redeploys for you:
+
+```bash
+cd cloud-cloudflare-pages
+npm run pin
+```
+
+**Local** (`local-python/`) — updates `.env`, then restart the server:
+
+```bash
+cd local-python
+python change_pin.py
+```
+
+Both ask which PIN (`user` or `admin`), take the new value twice without echoing it, and refuse anything that isn't 1–32 digits. To skip the prompts: `npm run pin -- admin 483920` or `python change_pin.py admin 483920`.
+
+Full details: [cloud guide](cloud-cloudflare-pages/README.md#-changing-the-pin) · [local guide](local-python/README.md#-changing-the-pin).
 
 ---
 
