@@ -62,6 +62,13 @@ export async function onRequestPost({ request, env }) {
       status: 401, headers: { "Content-Type": "application/json" }
     });
   }
+  // PINs may be any length; cap the input so a huge payload can't be used to
+  // hammer the comparison.
+  if (typeof body.pin !== "string" || body.pin.length > 32) {
+    return new Response(JSON.stringify({ detail: "Access Denied: Incorrect PIN" }), {
+      status: 401, headers: { "Content-Type": "application/json" }
+    });
+  }
   if (body.pin !== correctPin) {
     return new Response(JSON.stringify({ detail: "Access Denied: Incorrect PIN" }), {
       status: 401, headers: { "Content-Type": "application/json" }

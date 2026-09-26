@@ -187,9 +187,15 @@
     /* PIN Display */
     .pin-display {
       display: flex;
+      flex-wrap: wrap;               /* long PINs wrap instead of overflowing */
+      justify-content: center;
       gap: 16px;
       padding: 4px 0;
+      max-width: 100%;
     }
+    /* Tighten up once there are a lot of dots so they still fit on a phone */
+    .pin-display.many { gap: 10px; }
+    .pin-display.many .pin-dot { width: 11px; height: 11px; }
     .pin-dot {
       width: 15px;
       height: 15px;
@@ -1001,10 +1007,7 @@
 
     <!-- PIN dots (Shown when PIN required) -->
     <div class="pin-display" id="pin-container">
-      <div class="pin-dot" id="dot-0"></div>
-      <div class="pin-dot" id="dot-1"></div>
-      <div class="pin-dot" id="dot-2"></div>
-      <div class="pin-dot" id="dot-3"></div>
+      <!-- Dots are rendered by renderPinDots() to match the configured PIN length -->
     </div>
 
     <div class="status-msg" id="status">Connecting...</div>
@@ -1045,7 +1048,7 @@
       <div class="admin-body" id="admin-auth-view">
         <div class="admin-auth-box">
           <p style="font-size: 0.88rem; color: var(--muted); text-align: center;">Enter Admin PIN to manage whitelisted devices:</p>
-          <input type="password" id="admin-pin-input" class="admin-input" maxlength="8" placeholder="••••" />
+          <input type="password" id="admin-pin-input" class="admin-input" maxlength="32" placeholder="••••" />
           <button class="action-btn" id="btn-unlock-admin" style="height: 50px; font-size: 1rem;">Unlock Admin</button>
           <div id="admin-auth-err" style="color: var(--danger); font-size: 0.85rem; text-align: center;"></div>
         </div>
@@ -1133,6 +1136,9 @@
     "use strict";
 
     let currentPin = "";
+    // How many digits the server's PIN has. Sent by /api/device/register so the
+    // keypad renders one dot per digit; 4 is only the pre-registration default.
+    let pinLength = 4;
     let isWhitelisted = false;
     let deviceToken = "";
     let cachedAdminPin = "";
@@ -1212,6 +1218,7 @@
         // While re-verifying, stay in PIN mode even though the server still reports the device as whitelisted
         if (reverifyPending && data.is_whitelisted) return;
 
+        setPinLength(data.pin_length);
         isWhitelisted = data.is_whitelisted;
         reverifyCard.classList.remove("show");
         defaultDeviceName = `${data.platform || ""} (${data.browser || ""})`;
@@ -1255,31 +1262,61 @@
           doorIcon.classList.remove("whitelisted");
           openBtn.disabled = true;
           openBtn.classList.remove("whitelisted-ready");
-          statusEl.innerText = "Enter 4-digit PIN";
+          statusEl.innerText = pinPrompt();
           statusEl.className = "status-msg";
         }
       } catch (err) {
-        statusEl.innerText = "Enter 4-digit PIN";
+        statusEl.innerText = pinPrompt();
       }
+    }
+
+    function pinPrompt() {
+      return `Enter ${pinLength}-digit PIN`;
+    }
+
+    // Builds one dot per digit of the configured PIN. Called whenever the
+    // length changes (on load, and after registration reports the real length).
+    function renderPinDots() {
+      const wanted = Math.max(1, pinLength);
+      if (pinContainer.children.length === wanted) return;
+      pinContainer.innerHTML = "";
+      for (let i = 0; i < wanted; i++) {
+        const dot = document.createElement("div");
+        dot.className = "pin-dot";
+        dot.id = `dot-${i}`;
+        pinContainer.appendChild(dot);
+      }
+      pinContainer.classList.toggle("many", wanted > 6);
+    }
+
+    function setPinLength(n) {
+      const parsed = parseInt(n, 10);
+      if (!Number.isFinite(parsed) || parsed < 1 || parsed > 32) return;
+      if (parsed === pinLength && pinContainer.children.length === parsed) return;
+      pinLength = parsed;
+      if (currentPin.length > pinLength) currentPin = currentPin.slice(0, pinLength);
+      renderPinDots();
+      updateDots();
     }
 
     function updateDots() {
       if (isWhitelisted) return;
-      for (let i = 0; i < 4; i++) {
-        const dot = document.getElementById(`dot-${i}`);
+      renderPinDots();
+      const dots = pinContainer.children;
+      for (let i = 0; i < dots.length; i++) {
         if (i < currentPin.length) {
-          dot.classList.add("filled");
+          dots[i].classList.add("filled");
         } else {
-          dot.classList.remove("filled", "error");
+          dots[i].classList.remove("filled", "error");
         }
       }
-      openBtn.disabled = (currentPin.length !== 4);
+      openBtn.disabled = (currentPin.length !== pinLength);
     }
 
     function pressKey(num) {
       if (isWhitelisted) return;
       haptic(18);
-      if (currentPin.length < 4) {
+      if (currentPin.length < pinLength) {
         currentPin += num;
         updateDots();
       }
@@ -1291,7 +1328,7 @@
       currentPin = "";
       updateDots();
       statusEl.className = "status-msg";
-      statusEl.innerText = "Enter 4-digit PIN";
+      statusEl.innerText = pinPrompt();
       doorIcon.classList.remove("transmitting");
     }
 
@@ -1315,13 +1352,13 @@
         backspace();
       } else if (e.key === "Escape") {
         clearPin();
-      } else if (e.key === "Enter" && currentPin.length === 4) {
+      } else if (e.key === "Enter" && currentPin.length === pinLength) {
         sendTrigger();
       }
     });
 
     async function sendTrigger() {
-      if (!isWhitelisted && currentPin.length !== 4) return;
+      if (!isWhitelisted && currentPin.length !== pinLength) return;
       
       openBtn.disabled = true;
       doorIcon.classList.add("transmitting");
@@ -1376,9 +1413,7 @@
           statusEl.innerText = data.detail || "Access Denied";
           
           if (!isWhitelisted) {
-            for (let i = 0; i < 4; i++) {
-              document.getElementById(`dot-${i}`).classList.add("error");
-            }
+            for (const dot of pinContainer.children) dot.classList.add("error");
             pinContainer.classList.add("shake");
             haptic(250);
             setTimeout(() => {
@@ -1629,7 +1664,7 @@
       pinContainer.style.display = "flex";
       updateDots();
       statusEl.className = "status-msg";
-      statusEl.innerText = "Enter 4-digit PIN to re-verify";
+      statusEl.innerText = `Enter ${pinLength}-digit PIN to re-verify`;
       haptic(120);
     }
 

@@ -164,3 +164,10 @@ export async function authorizeViewer(env, credentials) {
     isAdmin: Boolean(device.is_admin)
   };
 }
+
+// How many digits the configured user PIN has, so the keypad can render the
+// right number of dots. The PIN itself is never sent to the client.
+export function configuredPinLength(env) {
+  const pin = String(env.GARAGE_PIN || "1234");
+  return Math.min(Math.max(pin.length, 1), 32);
+}

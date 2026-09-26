@@ -1,4 +1,4 @@
-import { parseDeviceTraits, countPendingRequests } from "../_db.js";
+import { parseDeviceTraits, countPendingRequests, configuredPinLength } from "../_db.js";
 
 export async function onRequestPost({ request, env }) {
   try {
@@ -29,7 +29,8 @@ export async function onRequestPost({ request, env }) {
         browser,
         hardware_fingerprint: hw,
         is_whitelisted: false,
-        has_opened_with_pin: false
+        has_opened_with_pin: false,
+        pin_length: configuredPinLength(env)
       }), { headers: { "Content-Type": "application/json" } });
     }
 
@@ -53,7 +54,8 @@ export async function onRequestPost({ request, env }) {
         browser,
         hardware_fingerprint: hw,
         is_whitelisted: false,
-        has_opened_with_pin: false
+        has_opened_with_pin: false,
+        pin_length: configuredPinLength(env)
       }), { headers: { "Content-Type": "application/json" } });
     } else {
       const updatedHw = hw || existing.hardware_fingerprint;
@@ -79,7 +81,8 @@ export async function onRequestPost({ request, env }) {
         pending_requests: isAdmin ? await countPendingRequests(env) : 0,
         siri_enabled: Boolean(existing.siri_key),
         // Optional iCloud-shared Shortcut link (set SIRI_SHORTCUT_URL in Pages env vars)
-        siri_shortcut_url: env.SIRI_SHORTCUT_URL || ""
+        siri_shortcut_url: env.SIRI_SHORTCUT_URL || "",
+        pin_length: configuredPinLength(env)
       }), { headers: { "Content-Type": "application/json" } });
     }
   } catch (err) {

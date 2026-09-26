@@ -137,6 +137,7 @@ If an unapproved device attempts access, or if any of the 4 conditions mismatch,
 
 ## 🏆 Key Features
 
+- **Any-Length PIN**: `GARAGE_PIN` can be 1–32 digits. The keypad reads the length from the server and renders one dot per digit — no code change needed to move from a 4-digit to a 10-digit PIN.
 - **PWA Mobile App**: Install to your iOS or Android home screen with a single tap. Features dark modern UI, responsive haptic feedback, and audio cues.
 - **Master Admin Drawer**: Whitelist trusted neighbors, assign custom nicknames (e.g., "Dad", "Sarah\'s Phone"), or revoke access in real time.
 - **Weekly Leaderboard**: Displays the top user of the week with access counts, resetting automatically every Sunday at 11:59 PM.

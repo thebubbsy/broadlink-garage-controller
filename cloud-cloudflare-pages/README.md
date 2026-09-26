@@ -237,6 +237,14 @@ To reach Alexa from a Cloudflare Pages function without running local servers, u
 
 ---
 
+## 🔢 PIN Length
+
+`GARAGE_PIN` and `GARAGE_ADMIN_PIN` can be any length from 1 to 32 digits — just set a longer value and redeploy. The keypad reads the length from `/api/device/register` (`pin_length`) and renders one dot per digit, so a 6-digit PIN shows 6 dots and the prompt reads "Enter 6-digit PIN". Past 6 digits the dots tighten up so they still fit on a phone. The PIN itself is never sent to the browser, only its length.
+
+Longer is better here: the cloud trigger endpoint still has no brute-force rate limit, so PIN length is currently the main thing standing between a script and the door.
+
+---
+
 ## 🔒 Private Usage History
 
 The app is hosted on public infrastructure, and the stats drawer and weekly leaderboard show when people come and go. Both are therefore restricted:
@@ -283,7 +291,7 @@ Edit `wrangler.toml`:
 
 ```toml
 [vars]
-GARAGE_PIN = "1234"        # Fallback 4-digit PIN for unwhitelisted devices
+GARAGE_PIN = "1234"        # User PIN for unwhitelisted devices — any length, 1-32 digits
 GARAGE_ADMIN_PIN = "0000"  # Master Admin PIN to open Admin console
 GARAGE_WEBHOOK_URL = "https://www.virtualsmarthome.xyz/url_routine_trigger/activate.php?trigger=YOUR_ID&token=YOUR_TOKEN"
 SIRI_SHORTCUT_URL = ""     # Optional: iCloud link to your shared "Open garage door" Shortcut (see Hey Siri section)

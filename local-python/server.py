@@ -21,6 +21,10 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent
 CORRECT_PIN = os.getenv("GARAGE_PIN", "1234")
 GARAGE_ADMIN_PIN = os.getenv("GARAGE_ADMIN_PIN", "0000")
+# PINs may be any length; the keypad renders one dot per digit. Cap the accepted
+# input so a huge payload can't be used to hammer the comparison.
+MAX_PIN_LENGTH = 32
+PIN_LENGTH = min(max(len(CORRECT_PIN), 1), MAX_PIN_LENGTH)
 # Optional: iCloud-shared Apple Shortcut link shown in the "Hey Siri" setup modal
 SIRI_SHORTCUT_URL = os.getenv("SIRI_SHORTCUT_URL", "")
 BROADLINK_IP = os.getenv("BROADLINK_IP", "")
@@ -210,6 +214,7 @@ async def register_device(request: Request, body: RegisterRequest):
         body.device_token, ua, ip, body.hardware_fingerprint or ""
     )
     device_info["siri_shortcut_url"] = SIRI_SHORTCUT_URL
+    device_info["pin_length"] = PIN_LENGTH
     return device_info
 
 # --- 1-Tap Access Request ---
@@ -291,7 +296,7 @@ async def trigger_garage(request: Request, body: TriggerRequest):
     if not body.pin:
         raise HTTPException(status_code=401, detail="PIN Required: Device signature not whitelisted.")
 
-    if body.pin != CORRECT_PIN:
+    if len(body.pin) > MAX_PIN_LENGTH or body.pin != CORRECT_PIN:
         time.sleep(0.8)  # Delay against brute-force timing
         raise HTTPException(status_code=401, detail="Access Denied: Incorrect PIN")
 
