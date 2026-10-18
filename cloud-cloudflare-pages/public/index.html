@@ -1028,6 +1028,11 @@
       <span>OPEN / CLOSE</span>
     </button>
 
+    <div id="last-action-pill" style="font-size:0.74rem; color:var(--muted); background:rgba(255,255,255,0.04); border:1px solid var(--card-border); border-radius:999px; padding:5px 12px; display:none; align-items:center; gap:6px;">
+      <span style="width:6px;height:6px;border-radius:50%;background:var(--success);display:inline-block;"></span>
+      <span id="last-action-text">Last opened: —</span>
+    </div>
+
     <!-- Request 1-Tap access (Shown once this device has opened the door with the PIN) -->
     <button class="request-onetap-btn" id="request-onetap-btn" type="button">⚡ Request 1-Tap Access</button>
   </div>
@@ -1056,6 +1061,7 @@
           <span style="font-size: 0.82rem; color: var(--muted);" id="device-count-label">0 Devices Registered</span>
           <button class="btn-small btn-rename" id="btn-refresh-devices" style="flex:0; padding: 4px 10px;">↻ Refresh</button>
         </div>
+        <input type="text" id="admin-device-filter" placeholder="Filter devices by name, IP, platform, or status..." style="width:100%; height:36px; background:var(--card); border:1px solid var(--card-border); border-radius:10px; color:#fff; font-size:0.8rem; padding:0 12px; outline:none; margin-bottom:4px;" />
         <div id="device-list-container" style="display: flex; flex-direction: column; gap: 10px;">
           <!-- Rendered dynamically -->
         </div>
@@ -1076,7 +1082,10 @@
   <div class="stats-drawer" id="stats-drawer">
     <div class="stats-drag-bar" id="btn-close-stats"><span></span></div>
     <div class="stats-drawer-inner">
-      <div class="stats-title">📊 Garage Stats</div>
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <div class="stats-title" style="text-align:left;">📊 Garage Stats</div>
+        <button class="btn-small btn-rename" id="btn-copy-stats" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;">📋 Copy Summary</button>
+      </div>
 
       <!-- Key numbers -->
       <div class="stat-grid" id="stats-grid">
@@ -1345,6 +1354,12 @@
           statusEl.className = "status-msg success";
           statusEl.innerText = "Door activated!";
           haptic([40, 60, 40]);
+          try {
+            localStorage.setItem("garage_last_trigger_ts", new Date().toISOString());
+            const prevCnt = parseInt(localStorage.getItem("garage_local_open_count") || "0", 10);
+            localStorage.setItem("garage_local_open_count", String(prevCnt + 1));
+            renderLastActionPill();
+          } catch (e) {}
 
           if (reverifyPending) {
             // Correct PIN rebinds the device signature server-side: restore 1-tap mode
@@ -2040,6 +2055,48 @@
     const btnCloseStats = document.getElementById("btn-close-stats");
     if (btnCloseStats) btnCloseStats.addEventListener("click", closeStatsDrawer);
 
+    function renderLastActionPill() {
+      const pill = document.getElementById("last-action-pill");
+      const txt = document.getElementById("last-action-text");
+      if (!pill || !txt) return;
+      const lastTs = localStorage.getItem("garage_last_trigger_ts");
+      const count = parseInt(localStorage.getItem("garage_local_open_count") || "0", 10);
+      if (lastTs) {
+        pill.style.display = "inline-flex";
+        txt.textContent = `Last opened: ${timeAgo(lastTs)} (${formatAEST(lastTs)})${count > 0 ? ` · ${count}×` : ""}`;
+      }
+    }
+
+    const adminFilterInput = document.getElementById("admin-device-filter");
+    if (adminFilterInput) {
+      adminFilterInput.addEventListener("input", () => {
+        const q = adminFilterInput.value.toLowerCase().trim();
+        document.querySelectorAll("#device-list-container .device-row").forEach(row => {
+          const text = (row.textContent || "").toLowerCase();
+          row.style.display = (!q || text.includes(q)) ? "" : "none";
+        });
+      });
+    }
+
+    const btnCopyStats = document.getElementById("btn-copy-stats");
+    if (btnCopyStats) {
+      btnCopyStats.addEventListener("click", async () => {
+        const tot = document.getElementById("stat-total")?.textContent || "0";
+        const dev = document.getElementById("stat-devices")?.textContent || "0";
+        const wl = document.getElementById("stat-whitelist")?.textContent || "0";
+        const pin = document.getElementById("stat-pin")?.textContent || "0";
+        const last = document.getElementById("stat-last")?.textContent || "—";
+        const peak = document.getElementById("sparkbar-peak-label")?.textContent || "—";
+        const summary = `Garage Controller Stats | Total Opens: ${tot} (1-Tap: ${wl}, PIN: ${pin}) | Devices: ${dev} | Last: ${last} | ${peak}`;
+        try {
+          await navigator.clipboard.writeText(summary);
+          btnCopyStats.textContent = "✓ Copied!";
+          haptic(20);
+          setTimeout(() => { btnCopyStats.textContent = "📋 Copy Summary"; }, 1800);
+        } catch (e) {}
+      });
+    }
+
     // 1-Tap request + admin call-to-action
     if (requestBtn) requestBtn.addEventListener("click", requestOneTap);
     // "Hey Siri" modal controls
@@ -2058,6 +2115,7 @@
     // Run on startup
     initDevice();
     fetchWeekly();
+    renderLastActionPill();
   })();
   </script>
 </body>
