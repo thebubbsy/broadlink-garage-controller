@@ -905,6 +905,7 @@
           <span style="font-size: 0.82rem; color: var(--muted);" id="device-count-label">0 Devices Registered</span>
           <div style="display: flex; gap: 6px;">
             <button class="btn-small btn-rename" id="btn-copy-devices-csv" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesCsv()">📋 Copy CSV</button>
+            <button class="btn-small btn-rename" id="btn-export-devices-json" style="flex:0; padding: 4px 10px;" onclick="exportAdminDevicesJson()">⬇ JSON</button>
             <button class="btn-small btn-rename" style="flex:0; padding: 4px 10px;" onclick="loadDevices()">↻ Refresh</button>
           </div>
         </div>
@@ -1649,6 +1650,30 @@
           setTimeout(() => { btn.textContent = "📋 Copy CSV"; }, 1800);
         }
       } catch (e) {}
+    }
+
+    function exportAdminDevicesJson() {
+      const btn = document.getElementById("btn-export-devices-json");
+      const rows = Array.from(document.querySelectorAll("#device-list-container .device-row"))
+        .filter(r => r.style.display !== "none");
+      const devices = rows.map(r => ({
+        name: (r.querySelector(".device-title")?.textContent || "").replace(/\s+/g, " ").trim(),
+        status: (r.querySelector(".tag")?.textContent || "").trim(),
+        details: (r.querySelector(".device-meta")?.textContent || "").replace(/\s+/g, " ").trim()
+      }));
+      const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), count: devices.length, devices }, null, 2)], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "garage-devices.json";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      if (btn) {
+        btn.textContent = "✓ Saved!";
+        setTimeout(() => { btn.textContent = "⬇ JSON"; }, 1800);
+      }
     }
 
     // Run on startup

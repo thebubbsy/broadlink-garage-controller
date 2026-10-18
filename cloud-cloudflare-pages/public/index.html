@@ -1061,6 +1061,7 @@
           <span style="font-size: 0.82rem; color: var(--muted);" id="device-count-label">0 Devices Registered</span>
           <div style="display: flex; gap: 6px;">
             <button class="btn-small btn-rename" id="btn-copy-devices-csv" style="flex:0; padding: 4px 10px;" title="Copy device audit list as CSV">📋 Copy CSV</button>
+            <button class="btn-small btn-rename" id="btn-export-devices-json" style="flex:0; padding: 4px 10px;" title="Download visible devices audit snapshot as JSON">⬇ JSON</button>
             <button class="btn-small btn-rename" id="btn-refresh-devices" style="flex:0; padding: 4px 10px;">↻ Refresh</button>
           </div>
         </div>
@@ -1091,9 +1092,12 @@
   <div class="stats-drawer" id="stats-drawer">
     <div class="stats-drag-bar" id="btn-close-stats"><span></span></div>
     <div class="stats-drawer-inner">
-      <div style="display:flex; align-items:center; justify-content:space-between;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
         <div class="stats-title" style="text-align:left;">📊 Garage Stats</div>
-        <button class="btn-small btn-rename" id="btn-copy-stats" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;">📋 Copy Summary</button>
+        <div style="display:flex; gap:6px;">
+          <button class="btn-small btn-rename" id="btn-copy-stats" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;">📋 Copy Summary</button>
+          <button class="btn-small btn-rename" id="btn-export-stats-json" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;">⬇ Export JSON</button>
+        </div>
       </div>
 
       <!-- Key numbers -->
@@ -2125,6 +2129,30 @@
       });
     }
 
+    const btnExportDevJson = document.getElementById("btn-export-devices-json");
+    if (btnExportDevJson) {
+      btnExportDevJson.addEventListener("click", () => {
+        const rows = Array.from(document.querySelectorAll("#device-list-container .device-row"))
+          .filter(r => r.style.display !== "none");
+        const devices = rows.map(r => ({
+          name: (r.querySelector(".device-title")?.textContent || "").replace(/\s+/g, " ").trim(),
+          status: (r.querySelector(".tag")?.textContent || "").trim(),
+          details: (r.querySelector(".device-meta")?.textContent || "").replace(/\s+/g, " ").trim()
+        }));
+        const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), count: devices.length, devices }, null, 2)], { type: "application/json;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "garage-devices.json";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        btnExportDevJson.textContent = "✓ Saved!";
+        setTimeout(() => { btnExportDevJson.textContent = "⬇ JSON"; }, 1800);
+      });
+    }
+
     // Desktop keyboard PIN entry support when no modal input is focused
     document.addEventListener("keydown", (e) => {
       if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
@@ -2156,6 +2184,33 @@
           haptic(20);
           setTimeout(() => { btnCopyStats.textContent = "📋 Copy Summary"; }, 1800);
         } catch (e) {}
+      });
+    }
+
+    const btnExportStatsJson = document.getElementById("btn-export-stats-json");
+    if (btnExportStatsJson) {
+      btnExportStatsJson.addEventListener("click", () => {
+        const payload = {
+          exportedAt: new Date().toISOString(),
+          totalOpens: document.getElementById("stat-total")?.textContent || "0",
+          totalDevices: document.getElementById("stat-devices")?.textContent || "0",
+          oneTapOpens: document.getElementById("stat-whitelist")?.textContent || "0",
+          pinOpens: document.getElementById("stat-pin")?.textContent || "0",
+          lastOpen: document.getElementById("stat-last")?.textContent || "—",
+          peakActivity: document.getElementById("sparkbar-peak-label")?.textContent || "—"
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "garage-usage-stats.json";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        btnExportStatsJson.textContent = "✓ Saved!";
+        haptic(20);
+        setTimeout(() => { btnExportStatsJson.textContent = "⬇ Export JSON"; }, 1800);
       });
     }
 
