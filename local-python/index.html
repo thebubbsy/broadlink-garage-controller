@@ -901,9 +901,18 @@
 
       <!-- Device List Form (Step 2) -->
       <div class="admin-body" id="admin-devices-view" style="display: none;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 6px; flex-wrap: wrap;">
           <span style="font-size: 0.82rem; color: var(--muted);" id="device-count-label">0 Devices Registered</span>
-          <button class="btn-small btn-rename" style="flex:0; padding: 4px 10px;" onclick="loadDevices()">↻ Refresh</button>
+          <div style="display: flex; gap: 6px;">
+            <button class="btn-small btn-rename" id="btn-copy-devices-csv" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesCsv()">📋 Copy CSV</button>
+            <button class="btn-small btn-rename" style="flex:0; padding: 4px 10px;" onclick="loadDevices()">↻ Refresh</button>
+          </div>
+        </div>
+        <div id="admin-status-chips" style="display:flex; gap:6px; margin-bottom:6px; flex-wrap:wrap;">
+          <button type="button" class="btn-small btn-rename" data-status-filter="all" onclick="setAdminStatusFilter('all', this)" style="flex:0; padding:4px 10px; font-size:0.72rem; border-color:var(--accent); color:#fff;">All</button>
+          <button type="button" class="btn-small btn-rename" data-status-filter="whitelisted" onclick="setAdminStatusFilter('whitelisted', this)" style="flex:0; padding:4px 10px; font-size:0.72rem;">★ 1-Tap</button>
+          <button type="button" class="btn-small btn-rename" data-status-filter="requested" onclick="setAdminStatusFilter('requested', this)" style="flex:0; padding:4px 10px; font-size:0.72rem;">⚡ Pending</button>
+          <button type="button" class="btn-small btn-rename" data-status-filter="locked" onclick="setAdminStatusFilter('locked', this)" style="flex:0; padding:4px 10px; font-size:0.72rem;">🔒 PIN Required</button>
         </div>
         <input type="text" id="admin-device-filter" placeholder="Filter devices by name, IP, platform, or status..." oninput="filterAdminDevices(this.value)" style="width:100%; height:36px; background:var(--card); border:1px solid var(--card-border); border-radius:10px; color:#fff; font-size:0.8rem; padding:0 12px; outline:none; margin-bottom:4px;" />
         <div id="device-list-container" style="display: flex; flex-direction: column; gap: 10px;">
@@ -1598,12 +1607,48 @@
       }
     }
 
+    let activeAdminStatusFilter = "all";
     function filterAdminDevices(val) {
-      const q = (val || "").toLowerCase().trim();
+      const q = (val !== undefined ? val : (document.getElementById("admin-device-filter")?.value || "")).toLowerCase().trim();
       document.querySelectorAll("#device-list-container .device-row").forEach(row => {
         const text = (row.textContent || "").toLowerCase();
-        row.style.display = (!q || text.includes(q)) ? "" : "none";
+        const matchesText = !q || text.includes(q);
+        const matchesStatus =
+          activeAdminStatusFilter === "all" ||
+          (activeAdminStatusFilter === "whitelisted" && row.classList.contains("whitelisted")) ||
+          (activeAdminStatusFilter === "requested" && row.classList.contains("requested")) ||
+          (activeAdminStatusFilter === "locked" && !row.classList.contains("whitelisted"));
+        row.style.display = (matchesText && matchesStatus) ? "" : "none";
       });
+    }
+
+    function setAdminStatusFilter(status, btn) {
+      activeAdminStatusFilter = status || "all";
+      document.querySelectorAll("#admin-status-chips [data-status-filter]").forEach(c => {
+        c.style.borderColor = (c === btn) ? "var(--accent)" : "rgba(255,255,255,0.08)";
+        c.style.color = (c === btn) ? "#fff" : "#93c5fd";
+      });
+      filterAdminDevices();
+    }
+
+    async function copyAdminDevicesCsv() {
+      const btn = document.getElementById("btn-copy-devices-csv");
+      const rows = Array.from(document.querySelectorAll("#device-list-container .device-row"))
+        .filter(r => r.style.display !== "none");
+      const csvLines = ["Name,Status,Details"];
+      rows.forEach(r => {
+        const name = (r.querySelector(".device-title")?.textContent || "").replace(/\s+/g, " ").trim();
+        const tag = (r.querySelector(".tag")?.textContent || "").trim();
+        const meta = (r.querySelector(".device-meta")?.textContent || "").replace(/\s+/g, " ").trim();
+        csvLines.push(`"${name.replace(/"/g, '""')}","${tag.replace(/"/g, '""')}","${meta.replace(/"/g, '""')}"`);
+      });
+      try {
+        await navigator.clipboard.writeText(csvLines.join("\r\n"));
+        if (btn) {
+          btn.textContent = "✓ Copied!";
+          setTimeout(() => { btn.textContent = "📋 Copy CSV"; }, 1800);
+        }
+      } catch (e) {}
     }
 
     // Run on startup
