@@ -1059,7 +1059,8 @@
       <div class="admin-body" id="admin-devices-view" style="display: none;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 6px; flex-wrap: wrap;">
           <span style="font-size: 0.82rem; color: var(--muted);" id="device-count-label">0 Devices Registered</span>
-          <div style="display: flex; gap: 6px;">
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button class="btn-small btn-rename" id="btn-copy-devices-md" style="flex:0; padding: 4px 10px;" title="Copy device audit list as Markdown table">📋 Copy MD</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-csv" style="flex:0; padding: 4px 10px;" title="Copy device audit list as CSV">📋 Copy CSV</button>
             <button class="btn-small btn-rename" id="btn-export-devices-json" style="flex:0; padding: 4px 10px;" title="Download visible devices audit snapshot as JSON">⬇ JSON</button>
             <button class="btn-small btn-rename" id="btn-refresh-devices" style="flex:0; padding: 4px 10px;">↻ Refresh</button>
@@ -1094,8 +1095,9 @@
     <div class="stats-drawer-inner">
       <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
         <div class="stats-title" style="text-align:left;">📊 Garage Stats</div>
-        <div style="display:flex; gap:6px;">
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">
           <button class="btn-small btn-rename" id="btn-copy-stats" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;">📋 Copy Summary</button>
+          <button class="btn-small btn-rename" id="btn-export-stats-csv" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;">⬇ Export CSV</button>
           <button class="btn-small btn-rename" id="btn-export-stats-json" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;">⬇ Export JSON</button>
         </div>
       </div>
@@ -1777,6 +1779,7 @@
           `;
           container.appendChild(row);
         });
+        applyAdminDeviceFilters();
 
         if (!container.dataset.hasListener) {
           container.dataset.hasListener = "true";
@@ -2082,7 +2085,29 @@
 
     const adminFilterInput = document.getElementById("admin-device-filter");
     let activeAdminStatusFilter = "all";
+    function updateAdminStatusChipCounts() {
+      const allRows = Array.from(document.querySelectorAll("#device-list-container .device-row"));
+      const counts = {
+        all: allRows.length,
+        whitelisted: allRows.filter(r => r.classList.contains("whitelisted")).length,
+        requested: allRows.filter(r => r.classList.contains("requested")).length,
+        locked: allRows.filter(r => !r.classList.contains("whitelisted")).length
+      };
+      const baseLabels = {
+        all: "All",
+        whitelisted: "★ 1-Tap",
+        requested: "⚡ Pending",
+        locked: "🔒 PIN Required"
+      };
+      document.querySelectorAll("#admin-status-chips [data-status-filter]").forEach(chip => {
+        const key = chip.getAttribute("data-status-filter") || "all";
+        if (baseLabels[key]) {
+          chip.textContent = `${baseLabels[key]} (${counts[key] ?? 0})`;
+        }
+      });
+    }
     function applyAdminDeviceFilters() {
+      updateAdminStatusChipCounts();
       const q = (adminFilterInput?.value || "").toLowerCase().trim();
       document.querySelectorAll("#device-list-container .device-row").forEach(row => {
         const text = (row.textContent || "").toLowerCase();
@@ -2108,6 +2133,29 @@
         applyAdminDeviceFilters();
       });
     });
+
+    const btnCopyDevMd = document.getElementById("btn-copy-devices-md");
+    if (btnCopyDevMd) {
+      btnCopyDevMd.addEventListener("click", async () => {
+        const rows = Array.from(document.querySelectorAll("#device-list-container .device-row"))
+          .filter(r => r.style.display !== "none");
+        const mdLines = [
+          "| Device | Status | Details |",
+          "| :--- | :--- | :--- |"
+        ];
+        rows.forEach(r => {
+          const name = (r.querySelector(".device-title")?.textContent || "").replace(/\s+/g, " ").replace(/\|/g, "\\|").trim();
+          const tag = (r.querySelector(".tag")?.textContent || "").replace(/\|/g, "\\|").trim();
+          const meta = (r.querySelector(".device-meta")?.textContent || "").replace(/\s+/g, " ").replace(/\|/g, "\\|").trim();
+          mdLines.push(`| ${name} | ${tag} | ${meta} |`);
+        });
+        try {
+          await navigator.clipboard.writeText(mdLines.join("\n"));
+          btnCopyDevMd.textContent = "✓ Copied!";
+          setTimeout(() => { btnCopyDevMd.textContent = "📋 Copy MD"; }, 1800);
+        } catch (e) {}
+      });
+    }
 
     const btnCopyDevCsv = document.getElementById("btn-copy-devices-csv");
     if (btnCopyDevCsv) {
@@ -2184,6 +2232,43 @@
           haptic(20);
           setTimeout(() => { btnCopyStats.textContent = "📋 Copy Summary"; }, 1800);
         } catch (e) {}
+      });
+    }
+
+    const btnExportStatsCsv = document.getElementById("btn-export-stats-csv");
+    if (btnExportStatsCsv) {
+      btnExportStatsCsv.addEventListener("click", () => {
+        const csvLines = [
+          "Metric,Value",
+          `"Total Opens","${(document.getElementById("stat-total")?.textContent || "0").replace(/"/g, '""')}"`,
+          `"Unique Devices","${(document.getElementById("stat-devices")?.textContent || "0").replace(/"/g, '""')}"`,
+          `"1-Tap Opens","${(document.getElementById("stat-whitelist")?.textContent || "0").replace(/"/g, '""')}"`,
+          `"PIN Opens","${(document.getElementById("stat-pin")?.textContent || "0").replace(/"/g, '""')}"`,
+          `"Last Open","${(document.getElementById("stat-last")?.textContent || "—").replace(/\s+/g, " ").trim().replace(/"/g, '""')}"`,
+          `"Peak Activity","${(document.getElementById("sparkbar-peak-label")?.textContent || "—").replace(/\s+/g, " ").trim().replace(/"/g, '""')}"`
+        ];
+        const recentRows = Array.from(document.querySelectorAll("#recent-list .recent-row"));
+        if (recentRows.length > 0) {
+          csvLines.push("", "RecentDevice,Method,Time");
+          recentRows.forEach(r => {
+            const rn = (r.querySelector(".recent-name")?.textContent || "").trim().replace(/"/g, '""');
+            const rm = (r.querySelector(".recent-method")?.textContent || "").trim().replace(/"/g, '""');
+            const rt = (r.querySelector(".recent-time")?.textContent || "").replace(/\s+/g, " ").trim().replace(/"/g, '""');
+            csvLines.push(`"${rn}","${rm}","${rt}"`);
+          });
+        }
+        const blob = new Blob([csvLines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "garage-usage-stats.csv";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        btnExportStatsCsv.textContent = "✓ Saved!";
+        haptic(20);
+        setTimeout(() => { btnExportStatsCsv.textContent = "⬇ Export CSV"; }, 1800);
       });
     }
 
