@@ -1,8 +1,20 @@
-// GET /api/weekly
+// POST /api/weekly  { device_token, admin_pin? }
 // Returns the top user for the current week based on AEST (Monday 00:00:00 to Sunday 23:59:59 AEST).
 // Resets every Sunday at 11:59:59 PM AEST.
-export async function onRequestGet({ env }) {
+// Restricted: names and open counts reveal household movement, so only
+// verified (1-tap) devices and administrators may read it.
+import { authorizeViewer, readViewerCredentials } from "./_db.js";
+
+// A plain browser visit must never return data.
+export async function onRequestGet() {
+  return jsonStatus({ error: "Usage history is only visible to verified devices and the admin." }, 403);
+}
+
+export async function onRequestPost({ request, env }) {
   if (!env.DB) return json({ top_name: null, top_count: 0 });
+
+  const auth = await authorizeViewer(env, await readViewerCredentials(request));
+  if (!auth.allowed) return jsonStatus({ error: "Usage history is only visible to verified devices and the admin." }, 403);
 
   try {
     // Current time in AEST (UTC+10)
@@ -54,6 +66,13 @@ export async function onRequestGet({ env }) {
 
 function json(data) {
   return new Response(JSON.stringify(data), {
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function jsonStatus(data, status) {
+  return new Response(JSON.stringify(data), {
+    status: status || 200,
     headers: { "Content-Type": "application/json" },
   });
 }

@@ -1,5 +1,8 @@
 # Local Architecture: Python (FastAPI) + BroadLink LAN Control
 
+[← Back to the main README](../README.md) · [Repository on GitHub](https://github.com/thebubbsy/broadlink-garage-controller) · [Cloud architecture](../cloud-cloudflare-pages/README.md)
+
+
 A lightweight, self-hosted smart garage door controller powered by **Python**, **FastAPI**, and **SQLite**.
 
 Communicates directly with your **BroadLink RM4 Pro** over local Wi-Fi UDP sockets, eliminating third-party cloud dependencies.
@@ -118,6 +121,32 @@ Export the Shortcut once and host the file; the Siri modal detects it and shows 
 Alternatively set `SIRI_SHORTCUT_URL` to an iCloud-shared Shortcut link; it's used when no file is hosted.
 
 > Security note: the Siri link is a plain bearer secret — it deliberately skips the browser-signature checks because Shortcuts isn't a browser. It's only issued to already-whitelisted devices and is revocable, so it's no weaker than the device token, but treat it like a key: don't share it, and don't open it in a browser (it triggers the door).
+
+---
+
+## 🔢 Changing the PIN
+
+```bash
+cd local-python
+python change_pin.py
+```
+
+It asks which PIN you mean, asks for the new value twice (never echoing it), and rewrites just that line in `.env` — every other setting, comment and blank line is left alone. Creates `.env` from `.env.example` if you don't have one yet.
+
+Skip the prompts if you prefer:
+
+```bash
+python change_pin.py user 483920      # the PIN that opens the door
+python change_pin.py admin 91735      # the PIN for the admin console
+```
+
+Then **restart the server** for it to take effect (`python server.py`, or restart the Windows service / systemd unit).
+
+Notes:
+
+- **PINs can be 1–32 digits.** The keypad reads the length from `/api/device/register` and renders one dot per digit, so a 6-digit PIN shows 6 dots and the prompt reads "Enter 6-digit PIN". The PIN itself is never sent to the browser, only its length.
+- Whitelisted (1-Tap) devices don't use the PIN, so changing it only affects people typing it in.
+- `.env` is gitignored, so your real PINs never end up in the repository.
 
 ---
 

@@ -1,5 +1,8 @@
 # Cloud Architecture: Cloudflare Pages + D1 + BroadLink Cloud / Alexa
 
+[← Back to the main README](../README.md) · [Repository on GitHub](https://github.com/thebubbsy/broadlink-garage-controller) · [Local architecture](../local-python/README.md)
+
+
 A 100% serverless, zero-maintenance smart garage door controller hosted on **Cloudflare Pages** with an edge **Cloudflare D1 SQL database**.
 
 This setup allows you to control your garage door 24/7 with **zero local servers or home PCs turned on**.
@@ -237,6 +240,60 @@ To reach Alexa from a Cloudflare Pages function without running local servers, u
 
 ---
 
+## 🔢 Changing the PIN
+
+```bash
+cd cloud-cloudflare-pages
+npm run pin
+```
+
+That's the whole thing. It asks which PIN you mean, asks for the new value twice (never echoing it), stores it as an **encrypted Cloudflare secret**, and redeploys so it takes effect — Pages only picks up config changes on a new deployment, which is the step that's easy to forget when doing it by hand.
+
+Skip the prompts if you prefer:
+
+```bash
+npm run pin -- user 483920      # the PIN that opens the door
+npm run pin -- admin 91735      # the PIN for the admin console
+```
+
+Notes:
+
+- **PINs can be 1–32 digits.** The keypad reads the length from `/api/device/register` and renders one dot per digit, so a 6-digit PIN shows 6 dots and the prompt reads "Enter 6-digit PIN". The PIN itself is never sent to the browser, only its length.
+- The first run **converts** that PIN from a plain-text variable into an encrypted secret, so it stops appearing in the project config. Nothing else in your configuration is touched — the webhook URL and the D1 binding stay exactly as they are.
+- Whitelisted (1-Tap) devices don't use the PIN, so changing it only affects people typing it in.
+- Forked the repo? The project name comes from `CF_PAGES_PROJECT`, or change `DEFAULT_PROJECT` at the top of `scripts/change-pin.mjs`.
+
+Longer is better here: the trigger endpoint still has no brute-force rate limit, so PIN length is currently the main thing between a script and the door. A 4-digit PIN is 10,000 guesses; 8 digits is 100 million.
+
+<details>
+<summary>Doing it by hand in the dashboard instead</summary>
+
+1. **Workers & Pages → garage-onyachamp → Settings → Variables and Secrets → Production**
+2. Edit `GARAGE_PIN` or `GARAGE_ADMIN_PIN` and save.
+3. **Redeploy** — variable changes only apply to new deployments:
+   ```bash
+   cd cloud-cloudflare-pages && npm run deploy
+   ```
+   Watch for `✨ Uploading Functions bundle` in the output. If you don't see that line the API won't be deployed and the whole app will break, so don't walk away from it.
+
+</details>
+
+---
+
+## 🔒 Private Usage History
+
+The app is hosted on public infrastructure, and the stats drawer and weekly leaderboard show when people come and go. Both are therefore restricted:
+
+- `POST /api/stats` and `POST /api/weekly` answer only **1-Tap whitelisted devices** (by `device_token`) and **administrators** (a device flagged `is_admin`, or the correct `admin_pin`). Everything else gets `403` and no data.
+- `GET` on either endpoint always returns `403`, so pasting the URL into a browser reveals nothing.
+- Credentials travel in the POST body, never in the query string, so device tokens and admin PINs stay out of URLs, edge logs and browser history.
+- Blocked devices are refused even if still whitelisted.
+- The front-end hides the Stats handle and the weekly banner unless the device qualifies — but the server is what enforces it.
+
+Run `npm test` in `cloud-cloudflare-pages/` to verify the rules (14 cases, no account or network needed).
+
+---
+
 ## 🎙 "Hey Siri, open garage door" (Apple Shortcuts)
 
 Whitelisted (1-Tap) devices can enable Siri from the app: tap **🎙 Set up "Hey Siri"** on the verified card. The app issues a private per-device link (`/api/siri/trigger?key=…`, 256-bit key) and shows a 5-step recipe for a 2-action Apple Shortcut (**Get Contents of URL** → **Show Result**). Name it *Open garage door* and Siri runs it from the lock screen, CarPlay or Apple Watch.
@@ -269,7 +326,7 @@ Edit `wrangler.toml`:
 
 ```toml
 [vars]
-GARAGE_PIN = "1234"        # Fallback 4-digit PIN for unwhitelisted devices
+GARAGE_PIN = "1234"        # User PIN for unwhitelisted devices — any length, 1-32 digits
 GARAGE_ADMIN_PIN = "0000"  # Master Admin PIN to open Admin console
 GARAGE_WEBHOOK_URL = "https://www.virtualsmarthome.xyz/url_routine_trigger/activate.php?trigger=YOUR_ID&token=YOUR_TOKEN"
 SIRI_SHORTCUT_URL = ""     # Optional: iCloud link to your shared "Open garage door" Shortcut (see Hey Siri section)

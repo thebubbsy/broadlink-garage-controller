@@ -187,9 +187,15 @@
     /* PIN Display */
     .pin-display {
       display: flex;
+      flex-wrap: wrap;               /* long PINs wrap instead of overflowing */
+      justify-content: center;
       gap: 16px;
       padding: 4px 0;
+      max-width: 100%;
     }
+    /* Tighten up once there are a lot of dots so they still fit on a phone */
+    .pin-display.many { gap: 10px; }
+    .pin-display.many .pin-dot { width: 11px; height: 11px; }
     .pin-dot {
       width: 15px;
       height: 15px;
@@ -677,11 +683,11 @@
 
     /* ── Stats Drawer ─────────────────────────────────── */
     .stats-handle {
+      display: none;            /* shown only for verified devices / admins */
       position: fixed;
       bottom: max(20px, env(safe-area-inset-bottom));
       left: 50%;
       transform: translateX(-50%);
-      display: flex;
       flex-direction: column;
       align-items: center;
       gap: 4px;
@@ -690,6 +696,7 @@
       padding: 8px 20px;
       -webkit-tap-highlight-color: transparent;
     }
+    .stats-handle.show { display: flex; }
     .stats-handle-bar {
       width: 36px; height: 4px;
       border-radius: 4px;
@@ -1000,10 +1007,7 @@
 
     <!-- PIN dots (Shown when PIN required) -->
     <div class="pin-display" id="pin-container">
-      <div class="pin-dot" id="dot-0"></div>
-      <div class="pin-dot" id="dot-1"></div>
-      <div class="pin-dot" id="dot-2"></div>
-      <div class="pin-dot" id="dot-3"></div>
+      <!-- Dots are rendered by renderPinDots() to match the configured PIN length -->
     </div>
 
     <div class="status-msg" id="status">Connecting...</div>
@@ -1049,7 +1053,7 @@
       <div class="admin-body" id="admin-auth-view">
         <div class="admin-auth-box">
           <p style="font-size: 0.88rem; color: var(--muted); text-align: center;">Enter Admin PIN to manage whitelisted devices:</p>
-          <input type="password" id="admin-pin-input" class="admin-input" maxlength="8" placeholder="••••" />
+          <input type="password" id="admin-pin-input" class="admin-input" maxlength="32" placeholder="••••" />
           <button class="action-btn" id="btn-unlock-admin" style="height: 50px; font-size: 1rem;">Unlock Admin</button>
           <div id="admin-auth-err" style="color: var(--danger); font-size: 0.85rem; text-align: center;"></div>
         </div>
@@ -1161,6 +1165,9 @@
     "use strict";
 
     let currentPin = "";
+    // How many digits the server's PIN has. Sent by /api/device/register so the
+    // keypad renders one dot per digit; 4 is only the pre-registration default.
+    let pinLength = 4;
     let isWhitelisted = false;
     let deviceToken = "";
     let cachedAdminPin = "";
@@ -1240,6 +1247,7 @@
         // While re-verifying, stay in PIN mode even though the server still reports the device as whitelisted
         if (reverifyPending && data.is_whitelisted) return;
 
+        setPinLength(data.pin_length);
         isWhitelisted = data.is_whitelisted;
         reverifyCard.classList.remove("show");
         defaultDeviceName = `${data.platform || ""} (${data.browser || ""})`;
@@ -1249,6 +1257,7 @@
         siriEnabled = Boolean(data.siri_enabled);
         siriShortcutUrl = data.siri_shortcut_url || "";
         renderSiriButton();
+        renderStatsAccess();
         renderRequestButton();
         renderAdminCta(data.pending_requests || 0);
         if (data.friendly_name) {
@@ -1282,31 +1291,61 @@
           doorIcon.classList.remove("whitelisted");
           openBtn.disabled = true;
           openBtn.classList.remove("whitelisted-ready");
-          statusEl.innerText = "Enter 4-digit PIN";
+          statusEl.innerText = pinPrompt();
           statusEl.className = "status-msg";
         }
       } catch (err) {
-        statusEl.innerText = "Enter 4-digit PIN";
+        statusEl.innerText = pinPrompt();
       }
+    }
+
+    function pinPrompt() {
+      return `Enter ${pinLength}-digit PIN`;
+    }
+
+    // Builds one dot per digit of the configured PIN. Called whenever the
+    // length changes (on load, and after registration reports the real length).
+    function renderPinDots() {
+      const wanted = Math.max(1, pinLength);
+      if (pinContainer.children.length === wanted) return;
+      pinContainer.innerHTML = "";
+      for (let i = 0; i < wanted; i++) {
+        const dot = document.createElement("div");
+        dot.className = "pin-dot";
+        dot.id = `dot-${i}`;
+        pinContainer.appendChild(dot);
+      }
+      pinContainer.classList.toggle("many", wanted > 6);
+    }
+
+    function setPinLength(n) {
+      const parsed = parseInt(n, 10);
+      if (!Number.isFinite(parsed) || parsed < 1 || parsed > 32) return;
+      if (parsed === pinLength && pinContainer.children.length === parsed) return;
+      pinLength = parsed;
+      if (currentPin.length > pinLength) currentPin = currentPin.slice(0, pinLength);
+      renderPinDots();
+      updateDots();
     }
 
     function updateDots() {
       if (isWhitelisted) return;
-      for (let i = 0; i < 4; i++) {
-        const dot = document.getElementById(`dot-${i}`);
+      renderPinDots();
+      const dots = pinContainer.children;
+      for (let i = 0; i < dots.length; i++) {
         if (i < currentPin.length) {
-          dot.classList.add("filled");
+          dots[i].classList.add("filled");
         } else {
-          dot.classList.remove("filled", "error");
+          dots[i].classList.remove("filled", "error");
         }
       }
-      openBtn.disabled = (currentPin.length !== 4);
+      openBtn.disabled = (currentPin.length !== pinLength);
     }
 
     function pressKey(num) {
       if (isWhitelisted) return;
       haptic(18);
-      if (currentPin.length < 4) {
+      if (currentPin.length < pinLength) {
         currentPin += num;
         updateDots();
       }
@@ -1318,7 +1357,7 @@
       currentPin = "";
       updateDots();
       statusEl.className = "status-msg";
-      statusEl.innerText = "Enter 4-digit PIN";
+      statusEl.innerText = pinPrompt();
       doorIcon.classList.remove("transmitting");
     }
 
@@ -1331,7 +1370,25 @@
       }
     }
 
+    // True while the user is typing into a field (admin PIN, nickname, ...).
+    function isTypingInField(e) {
+      const el = e.target;
+      if (!el || !el.tagName) return false;
+      const tag = el.tagName.toLowerCase();
+      return tag === "input" || tag === "textarea" || tag === "select" || el.isContentEditable === true;
+    }
+
+    // True while any modal or the stats drawer is on screen.
+    function isOverlayOpen() {
+      return Boolean(document.querySelector(".modal-backdrop.show, .nickname-modal.show, .stats-drawer.open"));
+    }
+
+    // The keypad listens on window, so it has to stand down whenever a field has
+    // focus or an overlay is open. Otherwise typing an admin PIN also filled the
+    // door PIN behind the modal — and Enter would have triggered the door.
     window.addEventListener("keydown", (e) => {
+      if (isTypingInField(e) || isOverlayOpen()) return;
+
       if (isWhitelisted && e.key === "Enter") {
         sendTrigger();
         return;
@@ -1342,13 +1399,13 @@
         backspace();
       } else if (e.key === "Escape") {
         clearPin();
-      } else if (e.key === "Enter" && currentPin.length === 4) {
+      } else if (e.key === "Enter" && currentPin.length === pinLength) {
         sendTrigger();
       }
     });
 
     async function sendTrigger() {
-      if (!isWhitelisted && currentPin.length !== 4) return;
+      if (!isWhitelisted && currentPin.length !== pinLength) return;
       
       openBtn.disabled = true;
       doorIcon.classList.add("transmitting");
@@ -1409,9 +1466,7 @@
           statusEl.innerText = data.detail || "Access Denied";
           
           if (!isWhitelisted) {
-            for (let i = 0; i < 4; i++) {
-              document.getElementById(`dot-${i}`).classList.add("error");
-            }
+            for (const dot of pinContainer.children) dot.classList.add("error");
             pinContainer.classList.add("shake");
             haptic(250);
             setTimeout(() => {
@@ -1622,6 +1677,14 @@
       }
     }
 
+    const adminPinField = document.getElementById("admin-pin-input");
+    if (adminPinField) {
+      adminPinField.addEventListener("keydown", function(e) {
+        if (e.key === "Enter") { e.preventDefault(); loginAdmin(); }
+        if (e.key === "Escape") closeAdminModal();
+      });
+    }
+
     document.getElementById("request-nickname-input").addEventListener("keydown", function(e) {
       if (e.key === "Enter") sendOneTapRequest();
       if (e.key === "Escape") closeRequestModal();
@@ -1662,7 +1725,7 @@
       pinContainer.style.display = "flex";
       updateDots();
       statusEl.className = "status-msg";
-      statusEl.innerText = "Enter 4-digit PIN to re-verify";
+      statusEl.innerText = `Enter ${pinLength}-digit PIN to re-verify`;
       haptic(120);
     }
 
@@ -1704,6 +1767,7 @@
           isAdmin = true;
           const info = await res.json().catch(() => ({}));
           renderAdminCta(info.pending_requests || 0);
+          renderStatsAccess();
           showDevicesView();
         } else {
           errEl.innerText = "Invalid Admin PIN";
@@ -1868,15 +1932,52 @@
       document.getElementById("stats-backdrop").classList.remove("open");
     }
 
+    // Usage history reveals when the household comes and goes, so the stats
+    // drawer and weekly leaderboard are restricted to verified (1-tap) devices
+    // and administrators. The server enforces this; the UI just hides them.
+    function canViewStats() {
+      return Boolean(isWhitelisted || isAdmin || cachedAdminPin);
+    }
+
+    function viewerCredentials() {
+      const creds = { device_token: deviceToken };
+      if (cachedAdminPin) creds.admin_pin = cachedAdminPin;
+      return creds;
+    }
+
+    function renderStatsAccess() {
+      const handle = document.getElementById("btn-open-stats");
+      if (canViewStats()) {
+        if (handle) handle.classList.add("show");
+        fetchWeekly();
+      } else {
+        if (handle) handle.classList.remove("show");
+        closeStatsDrawer();
+        statsLoaded = false;
+        const weekly = document.getElementById("weekly-top");
+        if (weekly) weekly.style.display = "none";
+      }
+    }
+
     async function fetchStats() {
+      const recent = document.getElementById("recent-list");
+      if (!canViewStats()) {
+        recent.innerHTML =
+          "<div style='color:var(--muted);text-align:center;'>Stats are only visible to verified devices.</div>";
+        return;
+      }
       try {
-        const res = await fetch("/api/stats");
+        const res = await fetch("/api/stats", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(viewerCredentials())
+        });
         if (!res.ok) throw new Error("HTTP " + res.status);
         const s = await res.json();
         statsLoaded = true;
         renderStats(s);
       } catch (err) {
-        document.getElementById("recent-list").innerHTML =
+        recent.innerHTML =
           "<div style='color:var(--danger);text-align:center;'>Could not load stats.</div>";
       }
     }
@@ -1975,8 +2076,13 @@
 
     // ── Weekly Top User ─────────────────────────────────
     async function fetchWeekly() {
+      if (!canViewStats()) return;
       try {
-        const res = await fetch("/api/weekly");
+        const res = await fetch("/api/weekly", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(viewerCredentials())
+        });
         if (!res.ok) return;
         const d = await res.json();
         if (d.top_name && d.top_count > 0) {
@@ -2399,9 +2505,8 @@
     if (btnSendReq) btnSendReq.addEventListener("click", sendOneTapRequest);
     if (adminCta) adminCta.addEventListener("click", openAdminModal);
 
-    // Run on startup
+    // Run on startup — initDevice() decides whether stats are visible
     initDevice();
-    fetchWeekly();
     renderLastActionPill();
   })();
   </script>
