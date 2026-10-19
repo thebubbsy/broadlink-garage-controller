@@ -908,6 +908,7 @@
           <span style="font-size: 0.82rem; color: var(--muted);" id="device-count-label">0 Devices Registered</span>
           <div style="display: flex; gap: 6px; flex-wrap: wrap;">
             <button class="btn-small btn-rename" id="btn-copy-devices-md" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesMd()">📋 Copy MD</button>
+            <button class="btn-small btn-rename" id="btn-copy-devices-tsv" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesTsv()" title="Copy device audit list as TSV for Excel/Sheets">📋 Copy TSV</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-csv" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesCsv()">📋 Copy CSV</button>
             <button class="btn-small btn-rename" id="btn-export-devices-csv" style="flex:0; padding: 4px 10px;" onclick="exportAdminDevicesCsv()" title="Download visible devices audit snapshot as CSV">⬇ CSV</button>
             <button class="btn-small btn-rename" id="btn-export-devices-json" style="flex:0; padding: 4px 10px;" onclick="exportAdminDevicesJson()">⬇ JSON</button>
@@ -1748,6 +1749,26 @@
         if (btn) {
           btn.textContent = "✓ Copied!";
           setTimeout(() => { btn.textContent = "📋 Copy MD"; }, 1800);
+        }
+      } catch (e) {}
+    }
+
+    async function copyAdminDevicesTsv() {
+      const btn = document.getElementById("btn-copy-devices-tsv");
+      const rows = Array.from(document.querySelectorAll("#device-list-container .device-row"))
+        .filter(r => r.style.display !== "none");
+      const tsvLines = ["Name\tStatus\tDetails"];
+      rows.forEach(r => {
+        const name = (r.querySelector(".device-title")?.textContent || "").replace(/[\t\r\n]+/g, " ").replace(/\s+/g, " ").trim();
+        const tag = (r.querySelector(".tag")?.textContent || "").replace(/[\t\r\n]+/g, " ").trim();
+        const meta = (r.querySelector(".device-meta")?.textContent || "").replace(/[\t\r\n]+/g, " ").replace(/\s+/g, " ").trim();
+        tsvLines.push(`${name}\t${tag}\t${meta}`);
+      });
+      try {
+        await navigator.clipboard.writeText(tsvLines.join("\r\n"));
+        if (btn) {
+          btn.textContent = "✓ Copied!";
+          setTimeout(() => { btn.textContent = "📋 Copy TSV"; }, 1800);
         }
       } catch (e) {}
     }
