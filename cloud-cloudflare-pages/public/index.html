@@ -1067,6 +1067,7 @@
             <button class="btn-small btn-rename" id="btn-copy-devices-md" style="flex:0; padding: 4px 10px;" title="Copy device audit list as Markdown table">📋 Copy MD</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-tsv" style="flex:0; padding: 4px 10px;" title="Copy device audit list as TSV for Excel/Sheets">📋 Copy TSV</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-csv" style="flex:0; padding: 4px 10px;" title="Copy device audit list as CSV">📋 Copy CSV</button>
+            <button class="btn-small btn-rename" id="btn-copy-devices-json" style="flex:0; padding: 4px 10px;" title="Copy device audit list as JSON to clipboard">📋 Copy JSON</button>
             <button class="btn-small btn-rename" id="btn-export-devices-csv" style="flex:0; padding: 4px 10px;" title="Download visible devices audit snapshot as CSV">⬇ CSV</button>
             <button class="btn-small btn-rename" id="btn-export-devices-json" style="flex:0; padding: 4px 10px;" title="Download visible devices audit snapshot as JSON">⬇ JSON</button>
             <button class="btn-small btn-rename" id="btn-refresh-devices" style="flex:0; padding: 4px 10px;">↻ Refresh</button>
@@ -1108,6 +1109,7 @@
           <button class="btn-small btn-rename" id="btn-copy-stats" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;">📋 Copy Summary</button>
           <button class="btn-small btn-rename" id="btn-copy-stats-md" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy Garage Stats & Recent Activity as Markdown report">📋 Copy MD</button>
           <button class="btn-small btn-rename" id="btn-copy-stats-tsv" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy Garage Stats & Recent Activity as TSV for Excel/Sheets">📋 Copy TSV</button>
+          <button class="btn-small btn-rename" id="btn-copy-stats-json" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy Garage Stats & Recent Activity as JSON to clipboard">📋 Copy JSON</button>
           <button class="btn-small btn-rename" id="btn-export-stats-csv" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;">⬇ Export CSV</button>
           <button class="btn-small btn-rename" id="btn-export-stats-json" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;">⬇ Export JSON</button>
         </div>
@@ -2324,6 +2326,26 @@
       });
     }
 
+    const btnCopyDevJson = document.getElementById("btn-copy-devices-json");
+    if (btnCopyDevJson) {
+      btnCopyDevJson.addEventListener("click", async () => {
+        const rows = Array.from(document.querySelectorAll("#device-list-container .device-row"))
+          .filter(r => r.style.display !== "none");
+        const devices = rows.map(r => ({
+          name: (r.querySelector(".device-title")?.textContent || "").replace(/\s+/g, " ").trim(),
+          status: (r.querySelector(".tag")?.textContent || "").trim(),
+          details: (r.querySelector(".device-meta")?.textContent || "").replace(/\s+/g, " ").trim()
+        }));
+        const jsonPayload = JSON.stringify({ exportedAt: new Date().toISOString(), count: devices.length, devices }, null, 2);
+        try {
+          await navigator.clipboard.writeText(jsonPayload);
+          btnCopyDevJson.textContent = "✓ Copied!";
+          haptic(20);
+          setTimeout(() => { btnCopyDevJson.textContent = "📋 Copy JSON"; }, 1800);
+        } catch (e) {}
+      });
+    }
+
     const btnExportDevCsv = document.getElementById("btn-export-devices-csv");
     if (btnExportDevCsv) {
       btnExportDevCsv.addEventListener("click", () => {
@@ -2481,6 +2503,33 @@
           btnCopyStatsTsv.textContent = "✓ Copied!";
           haptic(20);
           setTimeout(() => { btnCopyStatsTsv.textContent = "📋 Copy TSV"; }, 1800);
+        } catch (e) {}
+      });
+    }
+
+    const btnCopyStatsJson = document.getElementById("btn-copy-stats-json");
+    if (btnCopyStatsJson) {
+      btnCopyStatsJson.addEventListener("click", async () => {
+        const recentActivity = Array.from(document.querySelectorAll("#recent-list .recent-row")).map(r => ({
+          device: (r.querySelector(".recent-name")?.textContent || "").trim(),
+          method: (r.querySelector(".recent-method")?.textContent || "").trim(),
+          time: (r.querySelector(".recent-time")?.textContent || "").replace(/\s+/g, " ").trim()
+        }));
+        const payload = {
+          exportedAt: new Date().toISOString(),
+          totalOpens: (document.getElementById("stat-total")?.textContent || "0").trim(),
+          totalDevices: (document.getElementById("stat-devices")?.textContent || "0").trim(),
+          oneTapOpens: (document.getElementById("stat-whitelist")?.textContent || "0").trim(),
+          pinOpens: (document.getElementById("stat-pin")?.textContent || "0").trim(),
+          lastOpen: (document.getElementById("stat-last")?.textContent || "—").replace(/\s+/g, " ").trim(),
+          peakActivity: (document.getElementById("sparkbar-peak-label")?.textContent || "—").replace(/\s+/g, " ").trim(),
+          recentActivity
+        };
+        try {
+          await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+          btnCopyStatsJson.textContent = "✓ Copied!";
+          haptic(20);
+          setTimeout(() => { btnCopyStatsJson.textContent = "📋 Copy JSON"; }, 1800);
         } catch (e) {}
       });
     }

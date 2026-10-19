@@ -910,6 +910,7 @@
             <button class="btn-small btn-rename" id="btn-copy-devices-md" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesMd()">📋 Copy MD</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-tsv" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesTsv()" title="Copy device audit list as TSV for Excel/Sheets">📋 Copy TSV</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-csv" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesCsv()">📋 Copy CSV</button>
+            <button class="btn-small btn-rename" id="btn-copy-devices-json" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesJson()" title="Copy device audit list as JSON to clipboard">📋 Copy JSON</button>
             <button class="btn-small btn-rename" id="btn-export-devices-csv" style="flex:0; padding: 4px 10px;" onclick="exportAdminDevicesCsv()" title="Download visible devices audit snapshot as CSV">⬇ CSV</button>
             <button class="btn-small btn-rename" id="btn-export-devices-json" style="flex:0; padding: 4px 10px;" onclick="exportAdminDevicesJson()">⬇ JSON</button>
             <button class="btn-small btn-rename" style="flex:0; padding: 4px 10px;" onclick="loadDevices()">↻ Refresh</button>
@@ -1789,6 +1790,26 @@
         if (btn) {
           btn.textContent = "✓ Copied!";
           setTimeout(() => { btn.textContent = "📋 Copy CSV"; }, 1800);
+        }
+      } catch (e) {}
+    }
+
+    async function copyAdminDevicesJson() {
+      const btn = document.getElementById("btn-copy-devices-json");
+      const rows = Array.from(document.querySelectorAll("#device-list-container .device-row"))
+        .filter(r => r.style.display !== "none");
+      const devices = rows.map(r => ({
+        name: (r.querySelector(".device-title")?.textContent || "").replace(/\s+/g, " ").trim(),
+        status: (r.querySelector(".tag")?.textContent || "").trim(),
+        details: (r.querySelector(".device-meta")?.textContent || "").replace(/\s+/g, " ").trim()
+      }));
+      const jsonPayload = JSON.stringify({ exportedAt: new Date().toISOString(), count: devices.length, devices }, null, 2);
+      try {
+        await navigator.clipboard.writeText(jsonPayload);
+        if (btn) {
+          btn.textContent = "✓ Copied!";
+          haptic(20);
+          setTimeout(() => { btn.textContent = "📋 Copy JSON"; }, 1800);
         }
       } catch (e) {}
     }
