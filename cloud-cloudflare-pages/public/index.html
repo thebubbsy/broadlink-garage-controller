@@ -1066,6 +1066,7 @@
           <div style="display: flex; gap: 6px; flex-wrap: wrap;">
             <button class="btn-small btn-rename" id="btn-copy-devices-summary" style="flex:0; padding: 4px 10px;" title="Copy Markdown Status Breakdown &amp; Device Summary to clipboard">📋 Status Summary</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-summary-tsv" style="flex:0; padding: 4px 10px;" title="Copy Device Status Breakdown as TSV for Excel/Sheets">📋 Status TSV</button>
+            <button class="btn-small btn-rename" id="btn-copy-devices-summary-csv" style="flex:0; padding: 4px 10px;" title="Copy Device Status Breakdown as CSV to clipboard">📋 Status CSV</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-summary-json" style="flex:0; padding: 4px 10px;" title="Copy Device Status Breakdown as structured JSON to clipboard">📋 Status JSON</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-md" style="flex:0; padding: 4px 10px;" title="Copy device audit list as Markdown table">📋 Copy MD</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-tsv" style="flex:0; padding: 4px 10px;" title="Copy device audit list as TSV for Excel/Sheets">📋 Copy TSV</button>
@@ -1111,6 +1112,8 @@
         <div style="display:flex; gap:6px; flex-wrap:wrap;">
           <button class="btn-small btn-rename" id="btn-copy-stats" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;">📋 Copy Summary</button>
           <button class="btn-small btn-rename" id="btn-copy-stats-hourly-tsv" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy 24-hour AEST hourly distribution as TSV for Excel/Sheets">📋 Hourly TSV</button>
+          <button class="btn-small btn-rename" id="btn-copy-stats-hourly-csv" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy 24-hour AEST hourly distribution as CSV to clipboard">📋 Hourly CSV</button>
+          <button class="btn-small btn-rename" id="btn-copy-stats-hourly-md" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy 24-hour AEST hourly distribution as Markdown table to clipboard">📋 Hourly MD</button>
           <button class="btn-small btn-rename" id="btn-copy-stats-hourly-json" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy 24-hour AEST hourly distribution as structured JSON to clipboard">📋 Hourly JSON</button>
           <button class="btn-small btn-rename" id="btn-copy-stats-md" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy Garage Stats & Recent Activity as Markdown report">📋 Copy MD</button>
           <button class="btn-small btn-rename" id="btn-copy-stats-tsv" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy Garage Stats & Recent Activity as TSV for Excel/Sheets">📋 Copy TSV</button>
@@ -2426,6 +2429,36 @@
       });
     }
 
+    const btnCopyDevSummaryCsv = document.getElementById("btn-copy-devices-summary-csv");
+    if (btnCopyDevSummaryCsv) {
+      btnCopyDevSummaryCsv.addEventListener("click", async () => {
+        const allRows = Array.from(document.querySelectorAll("#device-list-container .device-row"));
+        const visRows = allRows.filter(r => r.style.display !== "none");
+        let wlCnt = 0, reqCnt = 0, lckCnt = 0;
+        allRows.forEach(r => {
+          const st = r.getAttribute("data-status") || "";
+          if (st === "whitelisted") wlCnt++;
+          else if (st === "requested") reqCnt++;
+          else lckCnt++;
+        });
+        const total = allRows.length;
+        const pct = (n) => total > 0 ? ((n * 100) / total).toFixed(1) + "%" : "0.0%";
+        const csvLines = [
+          "StatusTier,RegisteredCount,SharePercent",
+          `"1-Tap Whitelisted",${wlCnt},"${pct(wlCnt)}"`,
+          `"Pending 1-Tap Request",${reqCnt},"${pct(reqCnt)}"`,
+          `"PIN Required",${lckCnt},"${pct(lckCnt)}"`,
+          `"Total Registered (Visible: ${visRows.length})",${total},"100.0%"`
+        ];
+        try {
+          await navigator.clipboard.writeText(csvLines.join("\r\n"));
+          btnCopyDevSummaryCsv.textContent = "✓ Copied!";
+          haptic(20);
+          setTimeout(() => { btnCopyDevSummaryCsv.textContent = "📋 Status CSV"; }, 1800);
+        } catch (e) {}
+      });
+    }
+
     const btnCopyDevJson = document.getElementById("btn-copy-devices-json");
     if (btnCopyDevJson) {
       btnCopyDevJson.addEventListener("click", async () => {
@@ -2547,6 +2580,55 @@
           btnCopyStatsHourlyTsv.textContent = "✓ Copied!";
           haptic(20);
           setTimeout(() => { btnCopyStatsHourlyTsv.textContent = "📋 Hourly TSV"; }, 1800);
+        } catch (e) {}
+      });
+    }
+
+    const btnCopyStatsHourlyCsv = document.getElementById("btn-copy-stats-hourly-csv");
+    if (btnCopyStatsHourlyCsv) {
+      btnCopyStatsHourlyCsv.addEventListener("click", async () => {
+        const cols = Array.from(document.querySelectorAll("#sparkbar-chart .sparkbar-col"));
+        const csvRows = ["HourIndex,HourLabelAEST,RelativeActivityPct,IsPeakHour"];
+        cols.forEach((col, idx) => {
+          const bar = col.querySelector(".sparkbar");
+          const tick = (col.querySelector(".sparkbar-tick")?.textContent || String(idx)).trim().replace(/"/g, '""');
+          const hStyle = (bar?.style?.height || "0%").replace(/"/g, '""');
+          const isPeak = bar?.classList.contains("peak") ? "TRUE" : "FALSE";
+          csvRows.push(`${idx},"${tick}","${hStyle}",${isPeak}`);
+        });
+        try {
+          await navigator.clipboard.writeText(csvRows.join("\r\n"));
+          btnCopyStatsHourlyCsv.textContent = "✓ Copied!";
+          haptic(20);
+          setTimeout(() => { btnCopyStatsHourlyCsv.textContent = "📋 Hourly CSV"; }, 1800);
+        } catch (e) {}
+      });
+    }
+
+    const btnCopyStatsHourlyMd = document.getElementById("btn-copy-stats-hourly-md");
+    if (btnCopyStatsHourlyMd) {
+      btnCopyStatsHourlyMd.addEventListener("click", async () => {
+        const cols = Array.from(document.querySelectorAll("#sparkbar-chart .sparkbar-col"));
+        const peakLabel = (document.getElementById("sparkbar-peak-label")?.textContent || "—").replace(/\s+/g, " ").trim();
+        const mdRows = [
+          "### Broadlink Garage 24-Hour AEST Activity Distribution",
+          `**Peak Summary**: ${peakLabel}`,
+          "",
+          "| Hour (0-23) | AEST Label | Relative Activity | Peak Hour |",
+          "| :---: | :---: | :---: | :---: |"
+        ];
+        cols.forEach((col, idx) => {
+          const bar = col.querySelector(".sparkbar");
+          const tick = (col.querySelector(".sparkbar-tick")?.textContent || String(idx)).trim();
+          const hStyle = bar?.style?.height || "0%";
+          const isPeak = bar?.classList.contains("peak") ? "🔥 PEAK" : "—";
+          mdRows.push(`| ${idx} | ${tick} | ${hStyle} | ${isPeak} |`);
+        });
+        try {
+          await navigator.clipboard.writeText(mdRows.join("\r\n"));
+          btnCopyStatsHourlyMd.textContent = "✓ Copied!";
+          haptic(20);
+          setTimeout(() => { btnCopyStatsHourlyMd.textContent = "📋 Hourly MD"; }, 1800);
         } catch (e) {}
       });
     }
