@@ -908,6 +908,7 @@
           <span style="font-size: 0.82rem; color: var(--muted);" id="device-count-label">0 Devices Registered</span>
           <div style="display: flex; gap: 6px; flex-wrap: wrap;">
             <button class="btn-small btn-rename" id="btn-copy-devices-summary" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesSummary()" title="Copy Markdown Status Breakdown &amp; Device Summary to clipboard">📋 Status Summary</button>
+            <button class="btn-small btn-rename" id="btn-copy-devices-summary-tsv" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesSummaryTsv()" title="Copy Device Status Breakdown as TSV for Excel/Sheets">📋 Status TSV</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-md" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesMd()">📋 Copy MD</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-tsv" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesTsv()" title="Copy device audit list as TSV for Excel/Sheets">📋 Copy TSV</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-csv" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesCsv()">📋 Copy CSV</button>
@@ -1822,6 +1823,36 @@
           btn.textContent = "✓ Copied!";
           haptic(20);
           setTimeout(() => { btn.textContent = "📋 Status Summary"; }, 1800);
+        }
+      } catch (e) {}
+    }
+
+    async function copyAdminDevicesSummaryTsv() {
+      const btn = document.getElementById("btn-copy-devices-summary-tsv");
+      const allRows = Array.from(document.querySelectorAll("#device-list-container .device-row"));
+      const visRows = allRows.filter(r => r.style.display !== "none");
+      let wlCnt = 0, reqCnt = 0, lckCnt = 0;
+      allRows.forEach(r => {
+        const st = r.getAttribute("data-status") || "";
+        if (st === "whitelisted") wlCnt++;
+        else if (st === "requested") reqCnt++;
+        else lckCnt++;
+      });
+      const total = allRows.length;
+      const pct = (n) => total > 0 ? ((n * 100) / total).toFixed(1) + "%" : "0.0%";
+      const tsv = [
+        "StatusCategory\tDeviceCount\tSharePercent",
+        `1-Tap Whitelisted\t${wlCnt}\t${pct(wlCnt)}`,
+        `Pending 1-Tap Request\t${reqCnt}\t${pct(reqCnt)}`,
+        `PIN Required\t${lckCnt}\t${pct(lckCnt)}`,
+        `Total Registered (${visRows.length} visible)\t${total}\t100.0%`
+      ];
+      try {
+        await navigator.clipboard.writeText(tsv.join("\r\n"));
+        if (btn) {
+          btn.textContent = "✓ Copied!";
+          haptic(20);
+          setTimeout(() => { btn.textContent = "📋 Status TSV"; }, 1800);
         }
       } catch (e) {}
     }
