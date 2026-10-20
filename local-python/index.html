@@ -909,6 +909,7 @@
           <div style="display: flex; gap: 6px; flex-wrap: wrap;">
             <button class="btn-small btn-rename" id="btn-copy-devices-summary" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesSummary()" title="Copy Markdown Status Breakdown &amp; Device Summary to clipboard">📋 Status Summary</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-summary-tsv" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesSummaryTsv()" title="Copy Device Status Breakdown as TSV for Excel/Sheets">📋 Status TSV</button>
+            <button class="btn-small btn-rename" id="btn-copy-devices-summary-json" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesSummaryJson()" title="Copy Device Status Breakdown as structured JSON to clipboard">📋 Status JSON</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-md" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesMd()">📋 Copy MD</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-tsv" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesTsv()" title="Copy device audit list as TSV for Excel/Sheets">📋 Copy TSV</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-csv" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesCsv()">📋 Copy CSV</button>
@@ -1853,6 +1854,39 @@
           btn.textContent = "✓ Copied!";
           haptic(20);
           setTimeout(() => { btn.textContent = "📋 Status TSV"; }, 1800);
+        }
+      } catch (e) {}
+    }
+
+    async function copyAdminDevicesSummaryJson() {
+      const btn = document.getElementById("btn-copy-devices-summary-json");
+      const allRows = Array.from(document.querySelectorAll("#device-list-container .device-row"));
+      const visRows = allRows.filter(r => r.style.display !== "none");
+      let wlCnt = 0, reqCnt = 0, lckCnt = 0;
+      allRows.forEach(r => {
+        const st = r.getAttribute("data-status") || "";
+        if (st === "whitelisted") wlCnt++;
+        else if (st === "requested") reqCnt++;
+        else lckCnt++;
+      });
+      const total = allRows.length;
+      const pctNum = (n) => total > 0 ? Number(((n * 100) / total).toFixed(1)) : 0;
+      const payload = {
+        generatedAt: new Date().toISOString(),
+        totalRegistered: total,
+        visibleFiltered: visRows.length,
+        statusBreakdown: [
+          { status: "whitelisted", label: "1-Tap Whitelisted", count: wlCnt, sharePercent: pctNum(wlCnt) },
+          { status: "requested", label: "Pending 1-Tap Request", count: reqCnt, sharePercent: pctNum(reqCnt) },
+          { status: "locked", label: "PIN Required", count: lckCnt, sharePercent: pctNum(lckCnt) }
+        ]
+      };
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+        if (btn) {
+          btn.textContent = "✓ Copied!";
+          haptic(20);
+          setTimeout(() => { btn.textContent = "📋 Status JSON"; }, 1800);
         }
       } catch (e) {}
     }

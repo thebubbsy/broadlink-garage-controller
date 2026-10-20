@@ -1066,6 +1066,7 @@
           <div style="display: flex; gap: 6px; flex-wrap: wrap;">
             <button class="btn-small btn-rename" id="btn-copy-devices-summary" style="flex:0; padding: 4px 10px;" title="Copy Markdown Status Breakdown &amp; Device Summary to clipboard">📋 Status Summary</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-summary-tsv" style="flex:0; padding: 4px 10px;" title="Copy Device Status Breakdown as TSV for Excel/Sheets">📋 Status TSV</button>
+            <button class="btn-small btn-rename" id="btn-copy-devices-summary-json" style="flex:0; padding: 4px 10px;" title="Copy Device Status Breakdown as structured JSON to clipboard">📋 Status JSON</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-md" style="flex:0; padding: 4px 10px;" title="Copy device audit list as Markdown table">📋 Copy MD</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-tsv" style="flex:0; padding: 4px 10px;" title="Copy device audit list as TSV for Excel/Sheets">📋 Copy TSV</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-csv" style="flex:0; padding: 4px 10px;" title="Copy device audit list as CSV">📋 Copy CSV</button>
@@ -1110,6 +1111,7 @@
         <div style="display:flex; gap:6px; flex-wrap:wrap;">
           <button class="btn-small btn-rename" id="btn-copy-stats" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;">📋 Copy Summary</button>
           <button class="btn-small btn-rename" id="btn-copy-stats-hourly-tsv" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy 24-hour AEST hourly distribution as TSV for Excel/Sheets">📋 Hourly TSV</button>
+          <button class="btn-small btn-rename" id="btn-copy-stats-hourly-json" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy 24-hour AEST hourly distribution as structured JSON to clipboard">📋 Hourly JSON</button>
           <button class="btn-small btn-rename" id="btn-copy-stats-md" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy Garage Stats & Recent Activity as Markdown report">📋 Copy MD</button>
           <button class="btn-small btn-rename" id="btn-copy-stats-tsv" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy Garage Stats & Recent Activity as TSV for Excel/Sheets">📋 Copy TSV</button>
           <button class="btn-small btn-rename" id="btn-copy-stats-csv" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy Garage Stats & Recent Activity as CSV to clipboard">📋 Copy CSV</button>
@@ -2391,6 +2393,39 @@
       });
     }
 
+    const btnCopyDevSummaryJson = document.getElementById("btn-copy-devices-summary-json");
+    if (btnCopyDevSummaryJson) {
+      btnCopyDevSummaryJson.addEventListener("click", async () => {
+        const allRows = Array.from(document.querySelectorAll("#device-list-container .device-row"));
+        const visRows = allRows.filter(r => r.style.display !== "none");
+        let wlCnt = 0, reqCnt = 0, lckCnt = 0;
+        allRows.forEach(r => {
+          const st = r.getAttribute("data-status") || "";
+          if (st === "whitelisted") wlCnt++;
+          else if (st === "requested") reqCnt++;
+          else lckCnt++;
+        });
+        const total = allRows.length;
+        const pctNum = (n) => total > 0 ? Number(((n * 100) / total).toFixed(1)) : 0;
+        const payload = {
+          generatedAt: new Date().toISOString(),
+          totalRegistered: total,
+          visibleFiltered: visRows.length,
+          statusBreakdown: [
+            { status: "whitelisted", label: "1-Tap Whitelisted", count: wlCnt, sharePercent: pctNum(wlCnt) },
+            { status: "requested", label: "Pending 1-Tap Request", count: reqCnt, sharePercent: pctNum(reqCnt) },
+            { status: "locked", label: "PIN Required", count: lckCnt, sharePercent: pctNum(lckCnt) }
+          ]
+        };
+        try {
+          await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+          btnCopyDevSummaryJson.textContent = "✓ Copied!";
+          haptic(20);
+          setTimeout(() => { btnCopyDevSummaryJson.textContent = "📋 Status JSON"; }, 1800);
+        } catch (e) {}
+      });
+    }
+
     const btnCopyDevJson = document.getElementById("btn-copy-devices-json");
     if (btnCopyDevJson) {
       btnCopyDevJson.addEventListener("click", async () => {
@@ -2512,6 +2547,38 @@
           btnCopyStatsHourlyTsv.textContent = "✓ Copied!";
           haptic(20);
           setTimeout(() => { btnCopyStatsHourlyTsv.textContent = "📋 Hourly TSV"; }, 1800);
+        } catch (e) {}
+      });
+    }
+
+    const btnCopyStatsHourlyJson = document.getElementById("btn-copy-stats-hourly-json");
+    if (btnCopyStatsHourlyJson) {
+      btnCopyStatsHourlyJson.addEventListener("click", async () => {
+        const cols = Array.from(document.querySelectorAll("#sparkbar-chart .sparkbar-col"));
+        const peakLabel = (document.getElementById("sparkbar-peak-label")?.textContent || "—").replace(/\s+/g, " ").trim();
+        const hours = cols.map((col, idx) => {
+          const bar = col.querySelector(".sparkbar");
+          const tick = (col.querySelector(".sparkbar-tick")?.textContent || String(idx)).trim();
+          const hStyle = bar?.style?.height || "0%";
+          const pctVal = parseFloat(hStyle) || 0;
+          return {
+            hourIndex: idx,
+            hourLabelAEST: tick,
+            relativeActivityPct: pctVal,
+            isPeakHour: Boolean(bar?.classList.contains("peak"))
+          };
+        });
+        const payload = {
+          generatedAt: new Date().toISOString(),
+          timezone: "Australia/Sydney (AEST/AEDT)",
+          peakSummary: peakLabel,
+          hourlyDistribution: hours
+        };
+        try {
+          await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+          btnCopyStatsHourlyJson.textContent = "✓ Copied!";
+          haptic(20);
+          setTimeout(() => { btnCopyStatsHourlyJson.textContent = "📋 Hourly JSON"; }, 1800);
         } catch (e) {}
       });
     }
