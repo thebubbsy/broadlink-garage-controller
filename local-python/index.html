@@ -354,6 +354,97 @@
       transform: scale(0.96);
     }
 
+    /* Continuous RF Loop Toggle Button */
+    .loop-toggle-btn {
+      width: 100%;
+      height: 54px;
+      background: #131c31;
+      color: #cbd5e1;
+      font-size: 0.96rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      gap: 10px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .loop-toggle-btn.whitelisted-ready:not(.loop-active) {
+      border-color: rgba(59, 130, 246, 0.45);
+      background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95));
+      color: #f8fafc;
+    }
+    .loop-toggle-btn.loop-active {
+      background: linear-gradient(135deg, #f59e0b, #ea580c);
+      border-color: #fbbf24;
+      color: #ffffff;
+      box-shadow: 0 0 24px rgba(245, 158, 11, 0.5);
+      animation: pulse-loop-btn 1.2s infinite ease-in-out;
+    }
+    @keyframes pulse-loop-btn {
+      0%, 100% { box-shadow: 0 0 18px rgba(245, 158, 11, 0.45); }
+      50% { box-shadow: 0 0 30px rgba(245, 158, 11, 0.8); }
+    }
+    .loop-toggle-btn:disabled {
+      background: #111827;
+      color: #334155;
+      border-color: rgba(255, 255, 255, 0.04);
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+    .loop-toggle-btn:not(:disabled):active {
+      transform: scale(0.97);
+    }
+    .loop-btn-left {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      text-align: left;
+      line-height: 1.2;
+    }
+    .loop-btn-sub {
+      font-size: 0.68rem;
+      font-weight: 500;
+      opacity: 0.78;
+      letter-spacing: 0.2px;
+    }
+    .loop-switch {
+      width: 46px;
+      height: 26px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      position: relative;
+      flex-shrink: 0;
+      transition: all 0.2s ease;
+    }
+    .loop-switch-thumb {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #64748b;
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .loop-toggle-btn:not(:disabled) .loop-switch-thumb {
+      background: #cbd5e1;
+    }
+    .loop-toggle-btn.loop-active .loop-switch {
+      background: rgba(16, 185, 129, 0.95);
+      border-color: #a7f3d0;
+    }
+    .loop-toggle-btn.loop-active .loop-switch-thumb {
+      background: #ffffff;
+      transform: translateX(20px);
+      box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+    }
+
     /* Shake animation */
     .shake {
       animation: shake 0.38s ease-in-out;
@@ -875,6 +966,16 @@
       <span>OPEN / CLOSE</span>
     </button>
 
+    <button id="loop-btn" class="loop-toggle-btn" type="button" disabled onclick="toggleRfLoop()" aria-pressed="false">
+      <div class="loop-btn-left">
+        <span id="loop-btn-label">🔁 RF LOOP: OFF</span>
+        <span class="loop-btn-sub" id="loop-btn-sub">Continuous output (loop_rf_code.txt)</span>
+      </div>
+      <div class="loop-switch" aria-hidden="true">
+        <div class="loop-switch-thumb"></div>
+      </div>
+    </button>
+
     <div id="last-action-pill" style="font-size:0.74rem; color:var(--muted); background:rgba(255,255,255,0.04); border:1px solid var(--card-border); border-radius:999px; padding:5px 12px; display:none; align-items:center; gap:6px;">
       <span style="width:6px;height:6px;border-radius:50%;background:var(--success);display:inline-block;"></span>
       <span id="last-action-text">Last opened: —</span>
@@ -950,7 +1051,12 @@
 
     const statusEl = document.getElementById("status");
     const openBtn = document.getElementById("open-btn");
+    const loopBtn = document.getElementById("loop-btn");
+    const loopBtnLabel = document.getElementById("loop-btn-label");
+    const loopBtnSub = document.getElementById("loop-btn-sub");
     const doorIcon = document.getElementById("door-icon");
+    let loopActive = false;
+    let loopPollTimer = null;
     const pinContainer = document.getElementById("pin-container");
     const keypad = document.getElementById("keypad");
     const whitelistCard = document.getElementById("whitelist-card");
@@ -1062,8 +1168,14 @@
           statusEl.innerText = pinPrompt();
           statusEl.className = "status-msg";
         }
+        if (data.loop) {
+          applyLoopState(data.loop);
+        } else {
+          updateLoopButtonEligibility();
+        }
       } catch (err) {
         statusEl.innerText = pinPrompt();
+        updateLoopButtonEligibility();
       }
     }
 
@@ -1108,6 +1220,7 @@
         }
       }
       openBtn.disabled = (currentPin.length !== pinLength);
+      updateLoopButtonEligibility();
     }
 
     function pressKey(num) {
@@ -1126,7 +1239,7 @@
       updateDots();
       statusEl.className = "status-msg";
       statusEl.innerText = pinPrompt();
-      doorIcon.classList.remove("transmitting");
+      if (!loopActive) doorIcon.classList.remove("transmitting");
     }
 
     function backspace() {
@@ -1252,6 +1365,129 @@
         haptic(180);
         if (!isWhitelisted) setTimeout(clearPin, 2000);
         else openBtn.disabled = false;
+      }
+    }
+
+    // ── Continuous RF Loop Toggle (loop_rf_code.txt) ────────
+    function updateLoopButtonEligibility() {
+      if (!loopBtn) return;
+      loopBtn.classList.toggle("whitelisted-ready", Boolean(isWhitelisted));
+      // Always allow clicking when loop is active so it can be toggled OFF immediately
+      if (loopActive) {
+        loopBtn.disabled = false;
+      } else {
+        loopBtn.disabled = !isWhitelisted && (currentPin.length !== pinLength);
+      }
+    }
+
+    function applyLoopState(state) {
+      if (!state || !loopBtn) return;
+      loopActive = Boolean(state.active);
+      loopBtn.classList.toggle("loop-active", loopActive);
+      loopBtn.setAttribute("aria-pressed", loopActive ? "true" : "false");
+
+      if (loopActive) {
+        const sent = state.packets_sent || 0;
+        loopBtnLabel.textContent = "🔁 RF LOOP: ON (TRANSMITTING)";
+        loopBtnSub.textContent = `Looping ${state.code_file || "loop_rf_code.txt"} · ${sent} packet${sent === 1 ? "" : "s"} sent (tap to stop)`;
+        doorIcon.classList.add("transmitting");
+        statusEl.className = "status-msg success";
+        statusEl.innerText = state.last_error
+          ? `Loop warning: ${state.last_error}`
+          : `Continuous RF loop active (${sent} sent)`;
+        startLoopPolling();
+      } else {
+        loopBtnLabel.textContent = "🔁 RF LOOP: OFF";
+        loopBtnSub.textContent = `Continuous output (${state.code_file || "loop_rf_code.txt"})`;
+        doorIcon.classList.remove("transmitting");
+        stopLoopPolling();
+      }
+      updateLoopButtonEligibility();
+    }
+
+    function startLoopPolling() {
+      if (loopPollTimer) return;
+      loopPollTimer = setInterval(async () => {
+        try {
+          const res = await fetch("/api/loop/status", { cache: "no-store" });
+          if (res.ok) {
+            const st = await res.json();
+            applyLoopState(st);
+          }
+        } catch (_) {}
+      }, 1200);
+    }
+
+    function stopLoopPolling() {
+      if (loopPollTimer) {
+        clearInterval(loopPollTimer);
+        loopPollTimer = null;
+      }
+    }
+
+    async function toggleRfLoop() {
+      const targetState = !loopActive;
+      if (targetState && !isWhitelisted && currentPin.length !== pinLength) return;
+
+      loopBtn.disabled = true;
+      haptic(25);
+
+      const payload = {
+        active: targetState,
+        device_token: deviceToken,
+        hardware_fingerprint: getHardwareFingerprint()
+      };
+      if (targetState && !isWhitelisted) {
+        payload.pin = currentPin;
+      }
+
+      statusEl.className = "status-msg";
+      statusEl.innerText = targetState
+        ? "Starting continuous RF loop..."
+        : "Stopping continuous RF loop...";
+
+      try {
+        const res = await fetch("/api/loop/toggle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          applyLoopState(data);
+          haptic(targetState ? [35, 50, 35] : 30);
+
+          if (!targetState) {
+            statusEl.className = "status-msg";
+            statusEl.innerText = isWhitelisted ? "Loop stopped · Ready (1-Tap)" : pinPrompt();
+          } else if (!isWhitelisted) {
+            hasOpenedWithPin = true;
+            renderRequestButton();
+          }
+        } else {
+          if (isWhitelisted && data.requires_pin) {
+            enterReverifyMode(data);
+            return;
+          }
+          statusEl.className = "status-msg error";
+          statusEl.innerText = data.detail || "Could not toggle RF loop";
+          if (!isWhitelisted && targetState) {
+            for (const dot of pinContainer.children) dot.classList.add("error");
+            pinContainer.classList.add("shake");
+            haptic(250);
+            setTimeout(() => {
+              pinContainer.classList.remove("shake");
+              clearPin();
+            }, 1200);
+          }
+          updateLoopButtonEligibility();
+        }
+      } catch (err) {
+        statusEl.className = "status-msg error";
+        statusEl.innerText = "Offline. Check server connection.";
+        haptic(180);
+        updateLoopButtonEligibility();
       }
     }
 
