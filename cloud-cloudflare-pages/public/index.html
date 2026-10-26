@@ -1071,6 +1071,7 @@
             <button class="btn-small btn-rename" id="btn-copy-devices-summary-html" style="flex:0; padding: 4px 10px; border-color:rgba(232,121,249,0.35); color:#e879f9;" title="Copy styled HTML Status Breakdown &amp; Device Summary to clipboard">📋 Status HTML</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-summary-json" style="flex:0; padding: 4px 10px;" title="Copy Device Status Breakdown as structured JSON to clipboard">📋 Status JSON</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-html" style="flex:0; padding: 4px 10px; border-color:rgba(232,121,249,0.35); color:#e879f9;" title="Copy device audit list as styled HTML table">📋 Copy HTML</button>
+            <button class="btn-small btn-rename" id="btn-copy-devices-xml" style="flex:0; padding: 4px 10px; border-color:rgba(45,212,191,0.35); color:#2dd4bf;" title="Copy device audit list as structured XML">📋 Copy XML</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-md" style="flex:0; padding: 4px 10px;" title="Copy device audit list as Markdown table">📋 Copy MD</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-tsv" style="flex:0; padding: 4px 10px;" title="Copy device audit list as TSV for Excel/Sheets">📋 Copy TSV</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-csv" style="flex:0; padding: 4px 10px;" title="Copy device audit list as CSV">📋 Copy CSV</button>
@@ -1121,6 +1122,7 @@
           <button class="btn-small btn-rename" id="btn-copy-stats-hourly-md" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy 24-hour AEST hourly distribution as Markdown table to clipboard">📋 Hourly MD</button>
           <button class="btn-small btn-rename" id="btn-copy-stats-hourly-json" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy 24-hour AEST hourly distribution as structured JSON to clipboard">📋 Hourly JSON</button>
           <button class="btn-small btn-rename" id="btn-copy-stats-html" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem; border-color:rgba(232,121,249,0.35); color:#e879f9;" title="Copy Garage Stats &amp; Recent Activity as styled HTML report to clipboard">📋 Copy HTML</button>
+          <button class="btn-small btn-rename" id="btn-copy-stats-xml" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem; border-color:rgba(45,212,191,0.35); color:#2dd4bf;" title="Copy Garage Stats &amp; Recent Activity as structured XML report to clipboard">📋 Copy XML</button>
           <button class="btn-small btn-rename" id="btn-copy-stats-md" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy Garage Stats & Recent Activity as Markdown report">📋 Copy MD</button>
           <button class="btn-small btn-rename" id="btn-copy-stats-tsv" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy Garage Stats & Recent Activity as TSV for Excel/Sheets">📋 Copy TSV</button>
           <button class="btn-small btn-rename" id="btn-copy-stats-csv" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy Garage Stats & Recent Activity as CSV to clipboard">📋 Copy CSV</button>
@@ -2306,6 +2308,33 @@
       });
     }
 
+    const btnCopyDevXml = document.getElementById("btn-copy-devices-xml");
+    if (btnCopyDevXml) {
+      btnCopyDevXml.addEventListener("click", async () => {
+        const rows = Array.from(document.querySelectorAll("#device-list-container .device-row"))
+          .filter(r => r.style.display !== "none");
+        if (rows.length === 0) return;
+        const xmlRows = [];
+        let idx = 0;
+        rows.forEach(r => {
+          idx++;
+          const name = (r.querySelector(".device-title")?.textContent || "Unnamed").replace(/\s+/g, " ").trim();
+          const tag = (r.querySelector(".tag")?.textContent || "").replace(/\s+/g, " ").trim();
+          const meta = (r.querySelector(".device-meta")?.textContent || "").replace(/\s+/g, " ").trim();
+          const safeName = String(name).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+          const safeTag = String(tag).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+          const safeMeta = String(meta).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+          xmlRows.push(`  <Device index="${idx}" status="${safeTag}" details="${safeMeta}">${safeName}</Device>`);
+        });
+        const xmlDoc = `<?xml version="1.0" encoding="UTF-8"?>\n<Devices count="${idx}" exportedAt="${new Date().toISOString()}">\n${xmlRows.join('\n')}\n</Devices>`;
+        try {
+          await navigator.clipboard.writeText(xmlDoc);
+          btnCopyDevXml.textContent = "✓ Copied!";
+          setTimeout(() => { btnCopyDevXml.textContent = "📋 Copy XML"; }, 1800);
+        } catch (e) {}
+      });
+    }
+
     const btnCopyDevMd = document.getElementById("btn-copy-devices-md");
     if (btnCopyDevMd) {
       btnCopyDevMd.addEventListener("click", async () => {
@@ -2875,6 +2904,38 @@ ${rows}
           await navigator.clipboard.writeText(fullHtml);
           btnCopyStatsHtml.textContent = "✓ Copied!";
           setTimeout(() => { btnCopyStatsHtml.textContent = "📋 Copy HTML"; }, 1800);
+        } catch (e) {}
+      });
+    }
+
+    const btnCopyStatsXml = document.getElementById("btn-copy-stats-xml");
+    if (btnCopyStatsXml) {
+      btnCopyStatsXml.addEventListener("click", async () => {
+        const tot = (document.getElementById("stat-total")?.textContent || "0").trim();
+        const dev = (document.getElementById("stat-devices")?.textContent || "0").trim();
+        const wl = (document.getElementById("stat-whitelist")?.textContent || "0").trim();
+        const pin = (document.getElementById("stat-pin")?.textContent || "0").trim();
+        const last = (document.getElementById("stat-last")?.textContent || "—").replace(/\s+/g, " ").trim();
+        const peak = (document.getElementById("sparkbar-peak-label")?.textContent || "—").replace(/\s+/g, " ").trim();
+        const recentRows = Array.from(document.querySelectorAll("#recent-list .recent-row"));
+        const actRows = [];
+        let aIdx = 0;
+        recentRows.forEach(r => {
+          aIdx++;
+          const rn = (r.querySelector(".recent-name")?.textContent || "Unknown").trim();
+          const rm = (r.querySelector(".recent-method")?.textContent || "—").trim();
+          const rt = (r.querySelector(".recent-time")?.textContent || "—").trim();
+          const safeRn = String(rn).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+          const safeRm = String(rm).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+          const safeRt = String(rt).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+          actRows.push(`    <Event index="${aIdx}" method="${safeRm}" timestamp="${safeRt}">${safeRn}</Event>`);
+        });
+        const actSection = actRows.length > 0 ? `\n  <RecentActivity count="${actRows.length}">\n${actRows.join('\n')}\n  </RecentActivity>` : '';
+        const xmlDoc = `<?xml version="1.0" encoding="UTF-8"?>\n<GarageStats exportedAt="${new Date().toISOString()}">\n  <Summary totalOpens="${tot}" uniqueDevices="${dev}" oneTapOpens="${wl}" pinOpens="${pin}" lastOpen="${last}" peakActivity="${peak}" />${actSection}\n</GarageStats>`;
+        try {
+          await navigator.clipboard.writeText(xmlDoc);
+          btnCopyStatsXml.textContent = "✓ Copied!";
+          setTimeout(() => { btnCopyStatsXml.textContent = "📋 Copy XML"; }, 1800);
         } catch (e) {}
       });
     }

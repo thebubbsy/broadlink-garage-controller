@@ -1015,6 +1015,7 @@
             <button class="btn-small btn-rename" id="btn-copy-devices-summary-html" style="flex:0; padding: 4px 10px; border-color:rgba(232,121,249,0.35); color:#e879f9;" onclick="copyAdminDevicesSummaryHtml()" title="Copy styled HTML Status Breakdown &amp; Device Summary to clipboard">📋 Status HTML</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-summary-json" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesSummaryJson()" title="Copy Device Status Breakdown as structured JSON to clipboard">📋 Status JSON</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-html" style="flex:0; padding: 4px 10px; border-color:rgba(232,121,249,0.35); color:#e879f9;" onclick="copyAdminDevicesHtml()" title="Copy device audit list as styled HTML table">📋 Copy HTML</button>
+            <button class="btn-small btn-rename" id="btn-copy-devices-xml" style="flex:0; padding: 4px 10px; border-color:rgba(45,212,191,0.35); color:#2dd4bf;" onclick="copyAdminDevicesXml()" title="Copy device audit list as structured XML">📋 Copy XML</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-md" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesMd()">📋 Copy MD</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-tsv" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesTsv()" title="Copy device audit list as TSV for Excel/Sheets">📋 Copy TSV</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-csv" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesCsv()">📋 Copy CSV</button>
@@ -1999,6 +2000,34 @@
           btn.textContent = "✓ Copied!";
           haptic(20);
           setTimeout(() => { btn.textContent = "📋 Copy HTML"; }, 1800);
+        }
+      } catch (e) {}
+    }
+
+    async function copyAdminDevicesXml() {
+      const btn = document.getElementById("btn-copy-devices-xml");
+      const rows = Array.from(document.querySelectorAll("#device-list-container .device-row"))
+        .filter(r => r.style.display !== "none");
+      if (rows.length === 0) return;
+      const xmlRows = [];
+      let idx = 0;
+      rows.forEach(r => {
+        idx++;
+        const name = (r.querySelector(".device-title")?.textContent || "Unnamed").replace(/\s+/g, " ").trim();
+        const tag = (r.querySelector(".tag")?.textContent || "").replace(/\s+/g, " ").trim();
+        const meta = (r.querySelector(".device-meta")?.textContent || "").replace(/\s+/g, " ").trim();
+        const safeName = String(name).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const safeTag = String(tag).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const safeMeta = String(meta).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        xmlRows.push(`  <Device index="${idx}" status="${safeTag}" details="${safeMeta}">${safeName}</Device>`);
+      });
+      const xmlDoc = `<?xml version="1.0" encoding="UTF-8"?>\n<Devices count="${idx}" exportedAt="${new Date().toISOString()}">\n${xmlRows.join('\n')}\n</Devices>`;
+      try {
+        await navigator.clipboard.writeText(xmlDoc);
+        if (btn) {
+          btn.textContent = "✓ Copied!";
+          haptic(20);
+          setTimeout(() => { btn.textContent = "📋 Copy XML"; }, 1800);
         }
       } catch (e) {}
     }
