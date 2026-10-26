@@ -911,6 +911,7 @@
             <button class="btn-small btn-rename" id="btn-copy-devices-summary-tsv" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesSummaryTsv()" title="Copy Device Status Breakdown as TSV for Excel/Sheets">📋 Status TSV</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-summary-csv" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesSummaryCsv()" title="Copy Device Status Breakdown as CSV to clipboard">📋 Status CSV</button>
             <button class="btn-small btn-rename" id="btn-export-devices-summary-csv" style="flex:0; padding: 4px 10px;" onclick="exportAdminDevicesSummaryCsv()" title="Download Device Status Breakdown as CSV file">⬇ Status CSV</button>
+            <button class="btn-small btn-rename" id="btn-copy-devices-summary-html" style="flex:0; padding: 4px 10px; border-color:rgba(232,121,249,0.35); color:#e879f9;" onclick="copyAdminDevicesSummaryHtml()" title="Copy styled HTML Status Breakdown &amp; Device Summary to clipboard">📋 Status HTML</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-summary-json" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesSummaryJson()" title="Copy Device Status Breakdown as structured JSON to clipboard">📋 Status JSON</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-md" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesMd()">📋 Copy MD</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-tsv" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesTsv()" title="Copy device audit list as TSV for Excel/Sheets">📋 Copy TSV</button>
@@ -1957,6 +1958,44 @@
         haptic(20);
         setTimeout(() => { btn.textContent = "⬇ Status CSV"; }, 1800);
       }
+    }
+
+    async function copyAdminDevicesSummaryHtml() {
+      const btn = document.getElementById("btn-copy-devices-summary-html");
+      const allRows = Array.from(document.querySelectorAll("#device-list-container .device-row"));
+      const visRows = allRows.filter(r => r.style.display !== "none");
+      let wlCnt = 0, reqCnt = 0, lckCnt = 0;
+      allRows.forEach(r => {
+        const st = r.getAttribute("data-status") || "";
+        if (st === "whitelisted") wlCnt++;
+        else if (st === "requested") reqCnt++;
+        else lckCnt++;
+      });
+      const total = allRows.length;
+      const pct = (n) => total > 0 ? ((n * 100) / total).toFixed(1) + "%" : "0.0%";
+      const htmlTable = `<table style="border-collapse:collapse;font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:12px;color:#f8fafc;background:#0f172a;border:1px solid #334155;border-radius:6px;overflow:hidden">
+  <thead>
+    <tr style="background:#1e293b;border-bottom:2px solid #475569">
+      <th style="padding:6px 12px;text-align:left;color:#94a3b8">Status Tier</th>
+      <th style="padding:6px 12px;text-align:right;color:#94a3b8">Registered Devices</th>
+      <th style="padding:6px 12px;text-align:right;color:#94a3b8">Share %</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="border-bottom:1px solid #1e293b"><td style="padding:5px 12px;font-weight:600;color:#34d399">★ 1-Tap Whitelisted</td><td style="padding:5px 12px;text-align:right">${wlCnt}</td><td style="padding:5px 12px;text-align:right;color:#67e8f9">${pct(wlCnt)}</td></tr>
+    <tr style="border-bottom:1px solid #1e293b"><td style="padding:5px 12px;font-weight:600;color:#fbbf24">⚡ Pending 1-Tap Request</td><td style="padding:5px 12px;text-align:right">${reqCnt}</td><td style="padding:5px 12px;text-align:right;color:#67e8f9">${pct(reqCnt)}</td></tr>
+    <tr style="border-bottom:1px solid #1e293b"><td style="padding:5px 12px;font-weight:600;color:#94a3b8">🔒 PIN Required</td><td style="padding:5px 12px;text-align:right">${lckCnt}</td><td style="padding:5px 12px;text-align:right;color:#67e8f9">${pct(lckCnt)}</td></tr>
+    <tr style="font-weight:bold;background:#1e293b"><td style="padding:5px 12px">Total Registered (Visible: ${visRows.length})</td><td style="padding:5px 12px;text-align:right">${total}</td><td style="padding:5px 12px;text-align:right">100.0%</td></tr>
+  </tbody>
+</table>`;
+      try {
+        await navigator.clipboard.writeText(htmlTable);
+        if (btn) {
+          btn.textContent = "✓ Copied!";
+          haptic(20);
+          setTimeout(() => { btn.textContent = "📋 Status HTML"; }, 1800);
+        }
+      } catch (e) {}
     }
 
     async function copyAdminDevicesJson() {
