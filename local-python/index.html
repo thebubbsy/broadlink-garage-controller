@@ -1014,6 +1014,7 @@
             <button class="btn-small btn-rename" id="btn-export-devices-summary-csv" style="flex:0; padding: 4px 10px;" onclick="exportAdminDevicesSummaryCsv()" title="Download Device Status Breakdown as CSV file">⬇ Status CSV</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-summary-html" style="flex:0; padding: 4px 10px; border-color:rgba(232,121,249,0.35); color:#e879f9;" onclick="copyAdminDevicesSummaryHtml()" title="Copy styled HTML Status Breakdown &amp; Device Summary to clipboard">📋 Status HTML</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-summary-json" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesSummaryJson()" title="Copy Device Status Breakdown as structured JSON to clipboard">📋 Status JSON</button>
+            <button class="btn-small btn-rename" id="btn-copy-devices-html" style="flex:0; padding: 4px 10px; border-color:rgba(232,121,249,0.35); color:#e879f9;" onclick="copyAdminDevicesHtml()" title="Copy device audit list as styled HTML table">📋 Copy HTML</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-md" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesMd()">📋 Copy MD</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-tsv" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesTsv()" title="Copy device audit list as TSV for Excel/Sheets">📋 Copy TSV</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-csv" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesCsv()">📋 Copy CSV</button>
@@ -1971,6 +1972,35 @@
       if (inp) inp.value = "";
       const allChip = document.querySelector('#admin-status-chips [data-status-filter="all"]');
       setAdminStatusFilter("all", allChip);
+    }
+
+    async function copyAdminDevicesHtml() {
+      const btn = document.getElementById("btn-copy-devices-html");
+      const rows = Array.from(document.querySelectorAll("#device-list-container .device-row"))
+        .filter(r => r.style.display !== "none");
+      if (rows.length === 0) return;
+      const htmlRows = [];
+      let idx = 0;
+      rows.forEach(r => {
+        idx++;
+        const name = (r.querySelector(".device-title")?.textContent || "Unnamed").replace(/\s+/g, " ").trim();
+        const tag = (r.querySelector(".tag")?.textContent || "").replace(/\s+/g, " ").trim();
+        const meta = (r.querySelector(".device-meta")?.textContent || "").replace(/\s+/g, " ").trim();
+        const safeName = String(name).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safeTag = String(tag).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safeMeta = String(meta).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const bg = idx % 2 === 0 ? '#0d1117' : '#161b22';
+        htmlRows.push(`    <tr style="background:${bg};border-bottom:1px solid #21262d"><td style="padding:6px 10px;border:1px solid #30363d;text-align:center;color:#8b949e;font-family:monospace">${idx}</td><td style="padding:6px 10px;border:1px solid #30363d;font-weight:600;color:#c9d1d9">${safeName}</td><td style="padding:6px 10px;border:1px solid #30363d;text-align:center"><span style="background-color:#1e3a8a;color:#93c5fd;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">${safeTag}</span></td><td style="padding:6px 10px;border:1px solid #30363d;color:#8b949e;font-family:monospace;font-size:11px">${safeMeta}</td></tr>`);
+      });
+      const htmlTable = `<table style="border-collapse:collapse;width:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#c9d1d9;background-color:#0d1117;border:1px solid #30363d">\n  <thead>\n    <tr style="background-color:#21262d;color:#f0f6fc;text-align:left">\n      <th style="padding:8px 10px;border:1px solid #30363d;text-align:center;width:40px">#</th>\n      <th style="padding:8px 10px;border:1px solid #30363d">Device</th>\n      <th style="padding:8px 10px;border:1px solid #30363d;text-align:center;width:120px">Status</th>\n      <th style="padding:8px 10px;border:1px solid #30363d">Details</th>\n    </tr>\n  </thead>\n  <tbody>\n${htmlRows.join('\n')}\n  </tbody>\n</table>`;
+      try {
+        await navigator.clipboard.writeText(htmlTable);
+        if (btn) {
+          btn.textContent = "✓ Copied!";
+          haptic(20);
+          setTimeout(() => { btn.textContent = "📋 Copy HTML"; }, 1800);
+        }
+      } catch (e) {}
     }
 
     async function copyAdminDevicesMd() {
