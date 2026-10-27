@@ -1069,6 +1069,7 @@
             <button class="btn-small btn-rename" id="btn-copy-devices-summary-csv" style="flex:0; padding: 4px 10px;" title="Copy Device Status Breakdown as CSV to clipboard">📋 Status CSV</button>
             <button class="btn-small btn-rename" id="btn-export-devices-summary-csv" style="flex:0; padding: 4px 10px;" title="Download Device Status Breakdown as CSV file">⬇ Status CSV</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-summary-html" style="flex:0; padding: 4px 10px; border-color:rgba(232,121,249,0.35); color:#e879f9;" title="Copy styled HTML Status Breakdown &amp; Device Summary to clipboard">📋 Status HTML</button>
+            <button class="btn-small btn-rename" id="btn-copy-devices-summary-xml" style="flex:0; padding: 4px 10px; border-color:rgba(45,212,191,0.35); color:#2dd4bf;" title="Copy Device Status Breakdown as structured XML to clipboard">📋 Status XML</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-summary-json" style="flex:0; padding: 4px 10px;" title="Copy Device Status Breakdown as structured JSON to clipboard">📋 Status JSON</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-html" style="flex:0; padding: 4px 10px; border-color:rgba(232,121,249,0.35); color:#e879f9;" title="Copy device audit list as styled HTML table">📋 Copy HTML</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-xml" style="flex:0; padding: 4px 10px; border-color:rgba(45,212,191,0.35); color:#2dd4bf;" title="Copy device audit list as structured XML">📋 Copy XML</button>
@@ -1119,6 +1120,7 @@
           <button class="btn-small btn-rename" id="btn-copy-stats-hourly-csv" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy 24-hour AEST hourly distribution as CSV to clipboard">📋 Hourly CSV</button>
           <button class="btn-small btn-rename" id="btn-export-stats-hourly-csv" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Download 24-hour AEST hourly distribution as CSV file">⬇ Hourly CSV</button>
           <button class="btn-small btn-rename" id="btn-copy-stats-hourly-html" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem; border-color:rgba(232,121,249,0.35); color:#e879f9;" title="Copy 24-hour AEST hourly distribution as styled HTML table to clipboard">📋 Hourly HTML</button>
+          <button class="btn-small btn-rename" id="btn-copy-stats-hourly-xml" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem; border-color:rgba(45,212,191,0.35); color:#2dd4bf;" title="Copy 24-hour AEST hourly distribution as structured XML to clipboard">📋 Hourly XML</button>
           <button class="btn-small btn-rename" id="btn-copy-stats-hourly-md" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy 24-hour AEST hourly distribution as Markdown table to clipboard">📋 Hourly MD</button>
           <button class="btn-small btn-rename" id="btn-copy-stats-hourly-json" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem;" title="Copy 24-hour AEST hourly distribution as structured JSON to clipboard">📋 Hourly JSON</button>
           <button class="btn-small btn-rename" id="btn-copy-stats-html" type="button" style="flex:0; padding:5px 10px; font-size:0.74rem; border-color:rgba(232,121,249,0.35); color:#e879f9;" title="Copy Garage Stats &amp; Recent Activity as styled HTML report to clipboard">📋 Copy HTML</button>
@@ -2596,6 +2598,31 @@
       });
     }
 
+    const btnCopyDevSummaryXml = document.getElementById("btn-copy-devices-summary-xml");
+    if (btnCopyDevSummaryXml) {
+      btnCopyDevSummaryXml.addEventListener("click", async () => {
+        const allRows = Array.from(document.querySelectorAll("#device-list-container .device-row"));
+        const visRows = allRows.filter(r => r.style.display !== "none");
+        let wlCnt = 0, reqCnt = 0, lckCnt = 0;
+        allRows.forEach(r => {
+          const st = r.getAttribute("data-status") || "";
+          if (st === "whitelisted") wlCnt++;
+          else if (st === "requested") reqCnt++;
+          else lckCnt++;
+        });
+        const total = allRows.length;
+        const pct = (n) => total > 0 ? ((n * 100) / total).toFixed(1) + "%" : "0.0%";
+        const xmlDoc = `<?xml version="1.0" encoding="UTF-8"?>\n<DeviceStatusSummary totalRegistered="${total}" visibleFiltered="${visRows.length}" exportedAt="${new Date().toISOString()}">\n  <StatusTier name="1-Tap Whitelisted" status="whitelisted" count="${wlCnt}" sharePercent="${pct(wlCnt)}" />\n  <StatusTier name="Pending 1-Tap Request" status="requested" count="${reqCnt}" sharePercent="${pct(reqCnt)}" />\n  <StatusTier name="PIN Required" status="locked" count="${lckCnt}" sharePercent="${pct(lckCnt)}" />\n</DeviceStatusSummary>`;
+        try {
+          await navigator.clipboard.writeText(xmlDoc);
+          btnCopyDevSummaryXml.textContent = "✓ Copied!";
+          haptic(20);
+          setTimeout(() => { btnCopyDevSummaryXml.textContent = "📋 Status XML"; }, 1800);
+        } catch (e) {}
+      });
+    }
+
+
     const btnCopyDevJson = document.getElementById("btn-copy-devices-json");
     if (btnCopyDevJson) {
       btnCopyDevJson.addEventListener("click", async () => {
@@ -2803,6 +2830,31 @@ ${rows}
         } catch (e) {}
       });
     }
+
+    const btnCopyStatsHourlyXml = document.getElementById("btn-copy-stats-hourly-xml");
+    if (btnCopyStatsHourlyXml) {
+      btnCopyStatsHourlyXml.addEventListener("click", async () => {
+        const cols = Array.from(document.querySelectorAll("#sparkbar-chart .sparkbar-col"));
+        const peakLabel = (document.getElementById("sparkbar-peak-label")?.textContent || "—").replace(/\s+/g, " ").trim();
+        const safePeak = String(peakLabel).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const rows = cols.map((col, idx) => {
+          const bar = col.querySelector(".sparkbar");
+          const tick = (col.querySelector(".sparkbar-tick")?.textContent || String(idx)).trim();
+          const safeTick = String(tick).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+          const hStyle = bar?.style?.height || "0%";
+          const isPeak = bar?.classList.contains("peak");
+          return `    <Hour index="${idx}" label="${safeTick}" activity="${hStyle}" isPeak="${isPeak}" />`;
+        }).join('\n');
+        const xmlDoc = `<?xml version="1.0" encoding="UTF-8"?>\n<HourlyActivityDistribution totalHours="24" peakSummary="${safePeak}" exportedAt="${new Date().toISOString()}">\n${rows}\n</HourlyActivityDistribution>`;
+        try {
+          await navigator.clipboard.writeText(xmlDoc);
+          btnCopyStatsHourlyXml.textContent = "✓ Copied!";
+          haptic(20);
+          setTimeout(() => { btnCopyStatsHourlyXml.textContent = "📋 Hourly XML"; }, 1800);
+        } catch (e) {}
+      });
+    }
+
 
     const btnCopyStatsHourlyMd = document.getElementById("btn-copy-stats-hourly-md");
     if (btnCopyStatsHourlyMd) {

@@ -1013,6 +1013,7 @@
             <button class="btn-small btn-rename" id="btn-copy-devices-summary-csv" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesSummaryCsv()" title="Copy Device Status Breakdown as CSV to clipboard">📋 Status CSV</button>
             <button class="btn-small btn-rename" id="btn-export-devices-summary-csv" style="flex:0; padding: 4px 10px;" onclick="exportAdminDevicesSummaryCsv()" title="Download Device Status Breakdown as CSV file">⬇ Status CSV</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-summary-html" style="flex:0; padding: 4px 10px; border-color:rgba(232,121,249,0.35); color:#e879f9;" onclick="copyAdminDevicesSummaryHtml()" title="Copy styled HTML Status Breakdown &amp; Device Summary to clipboard">📋 Status HTML</button>
+            <button class="btn-small btn-rename" id="btn-copy-devices-summary-xml" style="flex:0; padding: 4px 10px; border-color:rgba(45,212,191,0.35); color:#2dd4bf;" onclick="copyAdminDevicesSummaryXml()" title="Copy Device Status Breakdown as structured XML to clipboard">📋 Status XML</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-summary-json" style="flex:0; padding: 4px 10px;" onclick="copyAdminDevicesSummaryJson()" title="Copy Device Status Breakdown as structured JSON to clipboard">📋 Status JSON</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-html" style="flex:0; padding: 4px 10px; border-color:rgba(232,121,249,0.35); color:#e879f9;" onclick="copyAdminDevicesHtml()" title="Copy device audit list as styled HTML table">📋 Copy HTML</button>
             <button class="btn-small btn-rename" id="btn-copy-devices-xml" style="flex:0; padding: 4px 10px; border-color:rgba(45,212,191,0.35); color:#2dd4bf;" onclick="copyAdminDevicesXml()" title="Copy device audit list as structured XML">📋 Copy XML</button>
@@ -2292,6 +2293,31 @@
         }
       } catch (e) {}
     }
+
+    async function copyAdminDevicesSummaryXml() {
+      const btn = document.getElementById("btn-copy-devices-summary-xml");
+      const allRows = Array.from(document.querySelectorAll("#device-list-container .device-row"));
+      const visRows = allRows.filter(r => r.style.display !== "none");
+      let wlCnt = 0, reqCnt = 0, lckCnt = 0;
+      allRows.forEach(r => {
+        const st = r.getAttribute("data-status") || "";
+        if (st === "whitelisted") wlCnt++;
+        else if (st === "requested") reqCnt++;
+        else lckCnt++;
+      });
+      const total = allRows.length;
+      const pct = (n) => total > 0 ? ((n * 100) / total).toFixed(1) + "%" : "0.0%";
+      const xmlDoc = `<?xml version="1.0" encoding="UTF-8"?>\n<DeviceStatusSummary totalRegistered="${total}" visibleFiltered="${visRows.length}" exportedAt="${new Date().toISOString()}">\n  <StatusTier name="1-Tap Whitelisted" status="whitelisted" count="${wlCnt}" sharePercent="${pct(wlCnt)}" />\n  <StatusTier name="Pending 1-Tap Request" status="requested" count="${reqCnt}" sharePercent="${pct(reqCnt)}" />\n  <StatusTier name="PIN Required" status="locked" count="${lckCnt}" sharePercent="${pct(lckCnt)}" />\n</DeviceStatusSummary>`;
+      try {
+        await navigator.clipboard.writeText(xmlDoc);
+        if (btn) {
+          btn.textContent = "✓ Copied!";
+          haptic(20);
+          setTimeout(() => { btn.textContent = "📋 Status XML"; }, 1800);
+        }
+      } catch (e) {}
+    }
+
 
     async function copyAdminDevicesJson() {
       const btn = document.getElementById("btn-copy-devices-json");
